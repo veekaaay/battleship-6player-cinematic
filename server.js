@@ -379,12 +379,21 @@ io.on('connection', socket => {
 
 // ── Start server ─────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
-let SERVER_URL = process.env.RAILWAY_PUBLIC_DOMAIN
-  ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-  : `http://localhost:${PORT}`;
+let SERVER_URL;
+if (process.env.RENDER_EXTERNAL_URL) {
+  SERVER_URL = process.env.RENDER_EXTERNAL_URL;
+} else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+  SERVER_URL = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+} else {
+  SERVER_URL = `http://localhost:${PORT}`;
+}
 
 httpServer.listen(PORT, '0.0.0.0', () => {
-  if (!process.env.RAILWAY_PUBLIC_DOMAIN) {
+  if (process.env.RENDER_EXTERNAL_URL) {
+    console.log(`\n⚓  Naval Warfare server running on Render: ${SERVER_URL}\n`);
+  } else if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    console.log(`\n⚓  Naval Warfare server running on Railway: ${SERVER_URL}\n`);
+  } else {
     const { networkInterfaces } = require('os');
     const nets = networkInterfaces();
     let localIP = 'localhost';
@@ -395,7 +404,5 @@ httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`\n⚓  Naval Warfare server running`);
     console.log(`   Local:   http://localhost:${PORT}`);
     console.log(`   Network: http://${localIP}:${PORT}  ← share this with players on your WiFi\n`);
-  } else {
-    console.log(`\n⚓  Naval Warfare server running on Railway: ${SERVER_URL}\n`);
   }
 });
