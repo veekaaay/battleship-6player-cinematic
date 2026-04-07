@@ -15,6 +15,35 @@ app.use(express.static(path.join(__dirname, 'public')));
 // ── Room storage ──────────────────────────────────────────────────
 const rooms = {};   // roomCode → RoomState
 
+const TURN_TIMEOUT_MS = 60_000;
+
+function clearTurnTimer(room) {
+  if (room.turnTimer) { clearTimeout(room.turnTimer); room.turnTimer = null; }
+  room.turnDeadline = null;
+}
+
+function startTurnTimer(room) {
+  clearTurnTimer(room);
+  if (room.phase !== 'game') return;
+  room.turnDeadline = Date.now() + TURN_TIMEOUT_MS;
+  room.turnTimer = setTimeout(() => {
+    if (room.phase !== 'game') return;
+    const skippedId = room.order[room.curIdx];
+    io.to(room.code).emit('turn-skipped', { skippedId });
+
+    // Advance turn
+    let next = (room.curIdx + 1) % room.order.length;
+    let tries = 0;
+    while (room.players.get(room.order[next]).eliminated && tries < room.order.length) {
+      next = (next + 1) % room.order.length; tries++;
+    }
+    room.curIdx = next;
+    room.turn++;
+    startTurnTimer(room);
+    broadcastState(room);
+  }, TURN_TIMEOUT_MS);
+}
+
 const RANKS = ['Admiral','Captain','Commander','Commodore','Lieutenant','Ensign'];
 const SHIP_COLORS = ['#00d0f8','#f02040','#30e860','#f0c000','#b030f8','#f07020'];
 
@@ -93,6 +122,7 @@ function stateFor(room, socketId) {
     turn: room.turn,
     winner: room.winner,
     hostId: room.hostId,
+    turnDeadline: room.turnDeadline || null,
   };
 }
 
@@ -203,6 +233,7 @@ io.on('connection', socket => {
           next = (next + 1) % room.order.length; tries++;
         }
         room.curIdx = next; room.turn++;
+        startTurnTimer(room);
       }
       // Check win condition
       const alive = room.order.filter(id => !room.players.get(id).eliminated);
@@ -279,6 +310,7 @@ io.on('connection', socket => {
       room.phase = 'game';
       room.curIdx = 0;
       room.turn = 1;
+      startTurnTimer(room);
       broadcastState(room);
     }
   });
@@ -334,6 +366,7 @@ io.on('connection', socket => {
     if (alive.length === 1) {
       room.phase = 'over';
       room.winner = alive[0];
+      clearTurnTimer(room);
       broadcastState(room);
       return;
     }
@@ -347,6 +380,7 @@ io.on('connection', socket => {
     }
     room.curIdx = next;
     room.turn++;
+    startTurnTimer(room);
     broadcastState(room);
   });
 

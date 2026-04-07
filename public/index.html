@@ -267,6 +267,9 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
 .tb-who{font-size:17px;letter-spacing:.1em;font-weight:bold;transition:color .3s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tb-stat{font-size:12px;color:var(--muted);margin-top:2px}
 .tb-turn{font-size:11px;color:var(--muted);flex-shrink:0;white-space:nowrap}
+.tb-clock{font-size:13px;font-weight:bold;flex-shrink:0;white-space:nowrap;min-width:36px;text-align:right;transition:color .3s}
+.tb-clock.urgent{color:#f04228;animation:clock-pulse .5s ease-in-out infinite}
+@keyframes clock-pulse{0%,100%{opacity:1}50%{opacity:.5}}
 
 /* enemy scroller */
 .esect{margin-bottom:12px}
@@ -457,7 +460,7 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
 .lpanel::-webkit-scrollbar{width:3px}
 .lpanel::-webkit-scrollbar-thumb{background:var(--bdr2)}
 .lrow{border-bottom:1px solid rgba(12,34,54,.5);padding:1px 0}
-.lhit{color:#e04020} .lmiss{color:#1e4868} .lelim{color:var(--gold);font-weight:bold} .lsunk{color:#e06020}
+.lhit{color:#e04020} .lmiss{color:#6a9cbe} .lelim{color:var(--gold);font-weight:bold} .lsunk{color:#e06020} .lskip{color:#c07800;font-style:italic}
 
 /* ════════════════════════════════════ DESKTOP */
 @media (min-width:700px){
@@ -651,6 +654,7 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
         <div class="tb-stat" id="tbstat">...</div>
       </div>
       <div class="tb-turn" id="tbturn"></div>
+      <div class="tb-clock" id="tbclock"></div>
     </div>
 
     <!-- responsive wrapper: mobile=stacked, desktop=3-col -->
@@ -790,7 +794,7 @@ const ns=(dur,vol,lp=800)=>{
   }catch(e){}
 };
 const SFX={
-  fire(){tn(210,'square',.06,.2,.002);ns(.14,.14,500)},
+  fire(){ns(.12,.06,250);tn(180,'sine',.04,.15,.003)},
   hit(){
     try{const a=gA(),o=a.createOscillator(),g=a.createGain();
       o.type='sine';o.frequency.setValueAtTime(105,a.currentTime);
@@ -864,6 +868,28 @@ socket.on('state',s=>{
 socket.on('attack-result',onAtkResult);
 socket.on('error',({msg})=>showErr(msg));
 socket.on('kicked',()=>{localStorage.removeItem('nw_session');alert('Removed by host.');goHome()});
+socket.on('turn-skipped',({skippedId})=>{
+  if(!gstate)return;
+  const p=gstate.players.find(p=>p.id===skippedId);
+  const name=p?p.name:'A player';
+  addLog(`⏱ ${name} ran out of time — turn skipped.`,'skip');
+});
+
+// ── Turn countdown clock ──────────────────────────────────────────
+let _clockRaf=null;
+function tickClock(){
+  const el=document.getElementById('tbclock');
+  if(!el){_clockRaf=requestAnimationFrame(tickClock);return;}
+  if(!gstate||!gstate.turnDeadline||gstate.phase!=='game'){
+    el.textContent='';el.className='tb-clock';
+    _clockRaf=requestAnimationFrame(tickClock);return;
+  }
+  const secs=Math.max(0,Math.ceil((gstate.turnDeadline-Date.now())/1000));
+  el.textContent=`${secs}s`;
+  el.className='tb-clock'+(secs<=15?' urgent':'');
+  _clockRaf=requestAnimationFrame(tickClock);
+}
+tickClock();
 
 // ════════════════════════ CONNECT
 const nameVal=()=>document.getElementById('myName').value.trim()||'Commander';
