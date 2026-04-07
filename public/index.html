@@ -208,7 +208,9 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
 .pc.placed{
   background:rgba(30,60,90,.18);
   border-color:rgba(100,160,210,.3);
+  cursor:move;
 }
+.pc.placed:hover{border-color:rgba(255,200,80,.55);background:rgba(60,50,20,.25)}
 /* ship palette */
 .spal{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px 0}
 .schip{
@@ -1216,12 +1218,14 @@ function buildPGrid(){
     const el=document.createElement('div');
     el.className='pc'+(myGrid[r*G+c]===1?' placed':'');
     el.dataset.r=r;el.dataset.c=c;
-    el.addEventListener('click',()=>doPl(r,c));
+    el.addEventListener('click',()=>{
+      if(myGrid[r*G+c]===1) pickupShip(r*G+c);
+      else doPl(r,c);
+    });
     el.addEventListener('mouseenter',()=>showPv(r,c));
     el.addEventListener('mouseleave',clearPv);
     g.appendChild(el);
   }
-  // Draw ship silhouettes after cells are in DOM
   requestAnimationFrame(()=>drawShipSVG(myShips,g));
 }
 function renderSPal(){
@@ -1246,6 +1250,16 @@ function showPv(r,c){
   });
 }
 function clearPv(){pvEls.forEach(el=>el.classList.remove('pvok','pvbad'));pvEls=[]}
+function pickupShip(cellIdx){
+  const si=myShips.findIndex(s=>s.cells.includes(cellIdx));
+  if(si<0)return;
+  const ship=myShips[si];
+  ship.cells.forEach(c=>myGrid[c]=0);
+  const defIdx=SHIPS.findIndex(s=>s.name===ship.name);
+  if(defIdx>=0){placed[defIdx]=false;selShip=defIdx;}
+  myShips.splice(si,1);
+  clearPv();buildPGrid();renderSPal();SFX.sonar();
+}
 function doPl(r,c){
   if(placed[selShip])return;
   const cells=sCells(r,c,SHIPS[selShip].size,orient);if(!canPl(cells))return;
