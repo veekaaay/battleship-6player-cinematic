@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Naval Warfare — 6-Player Battleship</title>
+<style>
+/* ══════════════════════════════════════ RESET & ROOT ══ */
+:root {
+  --ocean:   #020c16;
+  --ocean2:  #041220;
+  --steel:   #091e30;
+  --panel:   #071624;
+  --panel2:  #0a1e30;
+  --border:  #153050;
+  --border2: #0d2038;
+  --text:    #96b8d0;
+  --dim:     #2e5070;
+  --gold:    #c8921e;
+  --amber:   #d06010;
+  --sonar:   #18e07a;
+  --sonar2:  #0ea058;
+  --warn:    #e04020;
+  --p1: #00d0f8; --p1d: #003a48;
+  --p2: #f02040; --p2d: #480010;
+  --p3: #30e860; --p3d: #0a3a18;
+  --p4: #f0c000; --p4d: #483800;
+  --p5: #b030f8; --p5d: #380848;
+  --p6: #f07020; --p6d: #482008;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--ocean);color:var(--text);font-family:'Courier New',Courier,monospace}
+
+/* ══════════════════════════════ CANVAS BG ══ */
+#waveCvs{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4}
+
+/* ══════════════════════════════ APP ROOT ══ */
+#app{position:relative;z-index:2;height:100vh;overflow-y:auto;overflow-x:hidden}
+#app::-webkit-scrollbar{width:4px}
+#app::-webkit-scrollbar-track{background:var(--ocean)}
+#app::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* ══════════════════════════════ TITLE BAR ══ */
+#titleBar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 18px;
+  background:linear-gradient(180deg,rgba(2,10,20,.98) 0%,rgba(2,10,20,.7) 100%);
+  border-bottom:1px solid var(--border2);
+  position:sticky;top:0;z-index:60;
+  backdrop-filter:blur(8px);
+}
+.tb-title{
+  font-size:clamp(11px,1.8vw,20px);letter-spacing:.3em;text-transform:uppercase;
+  background:linear-gradient(90deg,#3a6888,#70b8d8,#c8a030,#70b8d8,#3a6888);
+  background-size:300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  animation:tShimmer 7s linear infinite;
+}
+@keyframes tShimmer{to{background-position:300% center}}
+.tb-sub{font-size:9px;letter-spacing:.35em;color:var(--dim);margin-top:2px}
+.tb-right{display:flex;gap:8px}
+.hud-btn{
+  background:transparent;border:1px solid var(--border);
+  color:var(--dim);padding:4px 10px;border-radius:3px;
+  cursor:pointer;font-family:inherit;font-size:10px;letter-spacing:.12em;
+  transition:all .2s;
+}
+.hud-btn:hover{border-color:var(--sonar2);color:var(--sonar)}
+.hud-btn.off{color:#442222;border-color:#331111}
+
+/* ══════════════════════════════ SCREENS ══ */
+.screen{display:none}
+.screen.active{display:block}
+
+/* ══════════════════════════════ START SCREEN ══ */
+#startScreen{max-width:740px;margin:0 auto;padding:24px 20px 40px}
+.s-head{
+  text-align:center;margin-bottom:22px;
+  padding-bottom:14px;border-bottom:1px solid var(--border2);
+}
+.s-head h2{font-size:13px;letter-spacing:.3em;color:var(--dim);margin-bottom:4px}
+.s-head p{font-size:10px;letter-spacing:.15em;color:#1a3a54}
+
+.psetup-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+.pcard{
+  background:var(--panel);border:1px solid var(--border2);
+  border-radius:5px;padding:12px;position:relative;overflow:hidden;
+}
+.pcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--pc)}
+.pcard.c0{--pc:var(--p1)} .pcard.c1{--pc:var(--p2)} .pcard.c2{--pc:var(--p3)}
+.pcard.c3{--pc:var(--p4)} .pcard.c4{--pc:var(--p5)} .pcard.c5{--pc:var(--p6)}
+.pcard-rank{font-size:8px;letter-spacing:.2em;color:var(--gold);margin-bottom:2px}
+.pcard-num{font-size:10px;letter-spacing:.15em;color:var(--pc);margin-bottom:7px}
+.pcard label{font-size:8px;letter-spacing:.15em;color:var(--dim);display:block;margin-bottom:3px}
+.pcard input{
+  background:rgba(0,0,0,.4);border:1px solid var(--border2);
+  color:var(--text);padding:5px 8px;width:100%;border-radius:3px;
+  font-family:inherit;font-size:12px;margin-bottom:8px;outline:none;
+  transition:border-color .2s;
+}
+.pcard input:focus{border-color:var(--sonar2)}
+.tog{display:flex;border:1px solid var(--border2);border-radius:3px;overflow:hidden;width:fit-content}
+.tog button{
+  background:transparent;border:none;color:var(--dim);
+  padding:4px 14px;cursor:pointer;font-family:inherit;
+  font-size:10px;letter-spacing:.1em;transition:all .2s;
+}
+.tog button.on{background:rgba(255,255,255,.07);color:var(--text)}
+
+.big-btn{
+  display:block;width:100%;
+  background:linear-gradient(135deg,#071e34,#0e3460);
+  border:1px solid #1a5080;color:#5a9ec8;
+  padding:14px;font-size:13px;letter-spacing:.4em;
+  text-transform:uppercase;cursor:pointer;border-radius:5px;
+  font-family:inherit;transition:all .3s;position:relative;overflow:hidden;
+}
+.big-btn::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.04),transparent);
+  transform:translateX(-100%);transition:transform .5s;
+}
+.big-btn:hover::before{transform:translateX(100%)}
+.big-btn:hover{box-shadow:0 0 28px rgba(0,80,160,.5);border-color:#2a70b0;color:#80b8e0}
+
+/* ══════════════════════════════ PLACEMENT ══ */
+#placeScreen{max-width:620px;margin:0 auto;padding:16px 20px 40px;text-align:center}
+.place-hdr{margin-bottom:14px}
+.place-hdr h2{font-size:17px;letter-spacing:.2em;margin-bottom:3px}
+.place-hdr p{font-size:10px;color:var(--dim)}
+
+.cgrid-wrap{display:inline-block;margin-bottom:14px}
+.coord-row-top{
+  display:grid;grid-template-columns:16px repeat(10,34px);gap:2px;
+  font-size:8px;color:var(--dim);margin-bottom:2px;
+}
+.coord-row-top span{display:flex;align-items:center;justify-content:center;height:14px}
+.cside-wrap{display:flex}
+.coord-col-side{
+  display:grid;grid-template-rows:repeat(10,34px);gap:2px;
+  font-size:8px;color:var(--dim);width:16px;
+}
+.coord-col-side span{display:flex;align-items:center;justify-content:center}
+
+#placeGrid{
+  display:grid;grid-template-columns:repeat(10,34px);
+  grid-template-rows:repeat(10,34px);gap:2px;
+}
+.pc{
+  background:rgba(4,14,26,.95);
+  border:1px solid rgba(18,46,70,.7);
+  border-radius:1px;cursor:pointer;position:relative;
+  transition:background .12s,border-color .12s;
+}
+.pc:hover{background:rgba(0,60,110,.45);border-color:rgba(0,140,200,.5)}
+.pc.pv-ok{background:rgba(0,100,180,.28);border-color:rgba(0,180,240,.55)}
+.pc.pv-bad{background:rgba(180,0,0,.22);border-color:rgba(240,40,40,.5)}
+.pc.placed{background:rgba(12,40,68,.85);border-color:rgba(25,80,130,.65)}
+.pc.placed-ship{background:rgba(15,50,90,.9)}
+
+.ship-pal{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-bottom:14px}
+.schip{
+  display:flex;align-items:center;gap:5px;
+  padding:4px 10px;border-radius:4px;
+  border:1px solid var(--border2);font-size:10px;letter-spacing:.1em;
+  cursor:pointer;transition:all .2s;background:var(--panel);
+}
+.schip.sel{border-color:#1a70c0;background:#071e34;color:#60a8d8}
+.schip.done{opacity:.3;text-decoration:line-through;cursor:default;pointer-events:none}
+.schip-bar{height:10px;border-radius:2px;background:rgba(20,80,130,.8);border:1px solid rgba(30,110,180,.7)}
+
+.pact{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.pact-btn{
+  background:var(--panel);border:1px solid var(--border);
+  color:var(--text);padding:7px 16px;border-radius:3px;
+  cursor:pointer;font-family:inherit;font-size:10px;letter-spacing:.12em;transition:all .2s;
+}
+.pact-btn:hover{background:var(--steel);border-color:var(--sonar2)}
+.pact-btn.pri{border-color:#1a60a0;color:#60a8d8}
+
+/* ══════════════════════════════ GAME SCREEN ══ */
+#gameScreen{padding:8px 10px 20px}
+
+/* 3-col war room layout */
+.warroom{
+  display:grid;
+  grid-template-columns:200px 1fr 190px;
+  gap:10px;
+  max-width:1200px;margin:0 auto 10px;
+  min-height:0;
+}
+
+/* ── Your Fleet panel (left) ── */
+.fleet-panel{
+  background:var(--panel);border:1px solid var(--border2);
+  border-radius:6px;padding:10px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.fleet-title{font-size:9px;letter-spacing:.25em;color:var(--dim);border-bottom:1px solid var(--border2);padding-bottom:5px;margin-bottom:2px}
+.own-grid-wrap{position:relative}
+.own-grid{
+  display:grid;grid-template-columns:repeat(10,1fr);gap:1px;
+  background:rgba(2,10,20,.9);border:1px solid var(--border2);
+  border-radius:2px;padding:1px;aspect-ratio:1;
+  position:relative;overflow:hidden;
+}
+/* scanlines overlay */
+.own-grid::after,.tac-grid::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:2;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.15) 3px,rgba(0,0,0,.15) 4px);
+  border-radius:2px;
+}
+.fleet-ships{display:flex;flex-direction:column;gap:4px;font-size:9px}
+.fship-row{display:flex;align-items:center;gap:5px}
+.fship-icon{font-size:11px}
+.fship-name{flex:1;letter-spacing:.08em;color:var(--text)}
+.fship-hp{width:50px;height:5px;background:rgba(0,0,0,.5);border-radius:2px;overflow:hidden}
+.fship-hp-fill{height:100%;border-radius:2px;transition:width .4s}
+.fship-sunk .fship-name{color:var(--dim);text-decoration:line-through}
+.fship-sunk .fship-hp-fill{background:var(--warn)!important}
+
+/* ── Tactical Display (center) ── */
+.tac-panel{
+  background:var(--panel);border:1px solid var(--border2);
+  border-radius:6px;padding:10px;
+  display:flex;flex-direction:column;
+}
+.tac-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:8px;
+}
+.tac-target-label{font-size:9px;letter-spacing:.2em;color:var(--dim)}
+.tac-target-name{font-size:15px;letter-spacing:.2em;font-weight:bold}
+.tac-status{
+  font-size:9px;letter-spacing:.15em;padding:3px 8px;
+  border-radius:10px;border:1px solid currentColor;
+}
+.tac-status.ok{color:var(--sonar);border-color:var(--sonar2)}
+.tac-status.na{color:var(--dim);border-color:var(--border2)}
+
+.tac-grid-wrap{
+  position:relative;flex:1;
+  display:flex;align-items:center;justify-content:center;
+}
+.tac-coord-top{
+  display:grid;grid-template-columns:18px repeat(10,1fr);
+  font-size:8px;color:var(--dim);margin-bottom:2px;
+}
+.tac-coord-top span,.tac-coord-side span{
+  display:flex;align-items:center;justify-content:center;
+}
+.tac-coord-side{
+  display:grid;grid-template-rows:repeat(10,1fr);
+  font-size:8px;color:var(--dim);width:18px;
+}
+.tac-inner{display:flex;flex-direction:column;width:100%}
+.tac-grid{
+  display:grid;grid-template-columns:repeat(10,1fr);gap:2px;
+  background:rgba(2,10,20,.95);border:1px solid var(--border2);
+  border-radius:3px;padding:2px;aspect-ratio:1;
+  position:relative;overflow:hidden;
+}
+.tgc{
+  background:rgba(3,12,22,.95);position:relative;
+  border:1px solid rgba(15,40,60,.5);border-radius:1px;
+  cursor:default;transition:background .12s;
+}
+.tgc.tkill{cursor:crosshair}
+.tgc.tkill:hover{background:rgba(0,80,130,.35);border-color:rgba(0,180,240,.4)}
+.tgc.tkill:hover::before{
+  content:'';position:absolute;inset:15%;
+  border:1px solid rgba(0,255,200,.55);border-radius:50%;
+}
+/* hit cell: burning glow */
+.tgc.thit{background:rgba(50,8,0,.9)}
+.tgc.thit::after{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(circle,rgba(255,60,0,.6) 0%,rgba(180,20,0,.3) 60%,transparent 100%);
+  animation:hitFlicker 1.5s ease-in-out infinite;
+}
+@keyframes hitFlicker{0%,100%{opacity:.8}50%{opacity:.4}}
+.tgc.thit::before{
+  content:'✕';position:absolute;inset:0;z-index:1;
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;color:rgba(255,80,20,.9);
+  text-shadow:0 0 6px #ff3300;
+}
+/* miss cell: ripple */
+.tgc.tmiss{background:rgba(3,15,28,.9)}
+.tgc.tmiss::before{
+  content:'·';position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:16px;color:rgba(20,80,140,.7);
+}
+/* no-target */
+.tac-panel.no-tgt .tgc.tkill{cursor:default}
+.tac-panel.no-tgt .tgc.tkill:hover{background:rgba(3,12,22,.95);border-color:rgba(15,40,60,.5)}
+.tac-panel.no-tgt .tgc.tkill:hover::before{display:none}
+
+/* ── Enemy roster (right) ── */
+.roster-panel{
+  background:var(--panel);border:1px solid var(--border2);
+  border-radius:6px;padding:8px;
+  display:flex;flex-direction:column;gap:6px;
+  overflow-y:auto;
+}
+.roster-panel::-webkit-scrollbar{width:3px}
+.roster-panel::-webkit-scrollbar-thumb{background:var(--border2)}
+.roster-title{font-size:9px;letter-spacing:.22em;color:var(--dim);margin-bottom:2px;padding-bottom:4px;border-bottom:1px solid var(--border2)}
+.rcard{
+  background:var(--panel2);border:1px solid var(--border2);
+  border-radius:4px;padding:6px;cursor:pointer;
+  transition:all .2s;position:relative;
+}
+.rcard:hover:not(.relim):not(.rself){border-color:var(--rc);box-shadow:0 0 8px color-mix(in srgb,var(--rc) 30%,transparent)}
+.rcard.rsel{border-color:var(--rc);box-shadow:0 0 10px color-mix(in srgb,var(--rc) 40%,transparent)}
+.rcard.relim{opacity:.3;cursor:default;filter:grayscale(.8)}
+.rcard.rself{opacity:.5;cursor:default}
+.rcard-name{font-size:9px;letter-spacing:.12em;color:var(--rc);margin-bottom:3px;font-weight:bold}
+.rcard-stats{font-size:8px;color:var(--dim)}
+.rmini{
+  display:grid;grid-template-columns:repeat(10,1fr);gap:0px;
+  background:rgba(2,8,16,.9);border:1px solid rgba(12,30,50,.8);
+  border-radius:1px;margin-top:4px;aspect-ratio:1;
+  overflow:hidden;
+}
+.rmc{background:rgba(3,12,22,.9);border:none}
+.rmc.rh{background:rgba(40,6,0,.9)}
+.rmc.rh::after{content:'';display:block;width:100%;height:100%;background:radial-gradient(circle,rgba(255,50,0,.6),transparent)}
+.rmc.rm{background:rgba(3,15,28,.9)}
+.rmc.rm::after{content:'·';display:flex;align-items:center;justify-content:center;font-size:6px;color:rgba(20,80,140,.6)}
+.rcard.c0{--rc:var(--p1)} .rcard.c1{--rc:var(--p2)} .rcard.c2{--rc:var(--p3)}
+.rcard.c3{--rc:var(--p4)} .rcard.c4{--rc:var(--p5)} .rcard.c5{--rc:var(--p6)}
+
+/* ══════════════════════════════ BOTTOM STATUS BAR ══ */
+.statusbar{
+  max-width:1200px;margin:0 auto;
+  display:grid;grid-template-columns:190px 1fr 190px;gap:10px;
+}
+#turnPanel{
+  background:var(--panel);border:1px solid var(--border2);
+  border-radius:6px;padding:10px 12px;
+}
+.tp-lbl{font-size:8px;letter-spacing:.25em;color:var(--dim);margin-bottom:2px}
+.tp-name{font-size:15px;letter-spacing:.15em;font-weight:bold}
+.tp-rank{font-size:8px;letter-spacing:.15em;color:var(--gold);margin:2px 0 4px}
+.tp-msg{font-size:9px;color:var(--dim);line-height:1.5}
+.tp-acc{font-size:8px;color:var(--dim);margin-top:4px}
+
+#battleLog{
+  background:var(--panel);border:1px solid var(--border2);
+  border-radius:6px;padding:8px 10px;
+  overflow-y:auto;max-height:110px;font-size:9px;line-height:1.8;
+}
+#battleLog::-webkit-scrollbar{width:3px}
+#battleLog::-webkit-scrollbar-thumb{background:var(--border2)}
+.lr{border-bottom:1px solid rgba(15,40,60,.5);padding:0}
+.lhit{color:#e04020} .lmiss{color:#284868} .lelim{color:var(--gold);font-weight:bold} .lsunk{color:#e06020}
+
+#statsPanel{
+  background:var(--panel);border:1px solid var(--border2);
+  border-radius:6px;padding:8px 10px;overflow-y:auto;max-height:110px;
+}
+#statsPanel::-webkit-scrollbar{width:3px}
+.sp-row{
+  display:flex;align-items:center;gap:5px;
+  margin-bottom:4px;font-size:9px;
+}
+.sp-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.sp-name{flex:1;letter-spacing:.08em}
+.sp-ships{min-width:28px;text-align:right;color:var(--text)}
+.sp-acc{min-width:34px;text-align:right;color:var(--dim);font-size:8px}
+
+/* ══════════════════════════════ PASS SCREEN ══ */
+#passScreen{
+  position:fixed;inset:0;z-index:180;
+  background:var(--ocean);
+  display:none;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:0;
+}
+#passScreen.show{display:flex}
+.pass-inner{text-align:center;max-width:400px;padding:40px}
+.pass-rule{
+  width:200px;height:1px;background:var(--border);
+  margin:20px auto;
+}
+.pass-eyebrow{font-size:9px;letter-spacing:.35em;color:var(--dim);margin-bottom:14px}
+.pass-directive{font-size:12px;letter-spacing:.25em;color:var(--dim);margin-bottom:10px}
+.pass-name{font-size:32px;letter-spacing:.2em;font-weight:bold;margin-bottom:4px}
+.pass-rank{font-size:11px;letter-spacing:.25em;color:var(--gold);margin-bottom:8px}
+.pass-hint{font-size:9px;letter-spacing:.15em;color:var(--dim);margin-bottom:28px;line-height:1.6}
+.pass-btn{
+  background:linear-gradient(135deg,#071e34,#0e3460);
+  border:1px solid #1a5080;color:#5a9ec8;
+  padding:14px 40px;font-size:12px;letter-spacing:.35em;
+  text-transform:uppercase;cursor:pointer;border-radius:5px;
+  font-family:inherit;transition:all .3s;
+}
+.pass-btn:hover{box-shadow:0 0 24px rgba(0,80,160,.5);border-color:#2a70b0;color:#80b8e0}
+.pass-anchor{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  font-size:9px;letter-spacing:.15em;color:var(--dim);
+}
+
+/* ══════════════════════════════ OVERLAYS ══ */
+.overlay{
+  position:fixed;inset:0;z-index:200;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(0,0,0,.9);backdrop-filter:blur(6px);
+}
+.ov-box{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;padding:36px 50px;text-align:center;min-width:340px;max-width:600px;
+}
+.ov-box h2{font-size:32px;letter-spacing:.3em;text-transform:uppercase;margin-bottom:8px}
+.ov-box p{font-size:11px;color:var(--dim);margin-bottom:20px;line-height:1.6}
+.ov-btn{
+  background:var(--steel);border:1px solid #1a5080;color:#5a9ec8;
+  padding:9px 24px;border-radius:4px;cursor:pointer;
+  font-family:inherit;font-size:11px;letter-spacing:.2em;
+  transition:all .2s;margin:4px;
+}
+.ov-btn:hover{background:#0e2840;box-shadow:0 0 12px rgba(0,80,160,.4)}
+
+/* Victory tints */
+.vc0 h2{color:var(--p1);text-shadow:0 0 28px var(--p1)}
+.vc1 h2{color:var(--p2);text-shadow:0 0 28px var(--p2)}
+.vc2 h2{color:var(--p3);text-shadow:0 0 28px var(--p3)}
+.vc3 h2{color:var(--p4);text-shadow:0 0 28px var(--p4)}
+.vc4 h2{color:var(--p5);text-shadow:0 0 28px var(--p5)}
+.vc5 h2{color:var(--p6);text-shadow:0 0 28px var(--p6)}
+
+/* stats table */
+.stbl{width:100%;border-collapse:collapse;font-size:9px;margin:12px 0 16px}
+.stbl th{color:var(--dim);border-bottom:1px solid var(--border2);padding:3px 8px;letter-spacing:.1em;text-align:left}
+.stbl td{padding:3px 8px;border-bottom:1px solid var(--border2)}
+
+/* ══════════════════════════════ FX LAYER ══ */
+#fxLayer{position:fixed;inset:0;z-index:300;pointer-events:none;overflow:hidden}
+.msldot{
+  position:absolute;border-radius:50%;
+  background:#ffe050;width:6px;height:6px;
+  box-shadow:0 0 6px #ffc000,0 0 14px #ff8800;
+  transform:translate(-50%,-50%);
+  transition:none;
+}
+.msltrail{
+  position:absolute;border-radius:50%;
+  background:rgba(255,180,0,.35);
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+}
+.spk{
+  position:absolute;border-radius:50%;
+  animation:spkFly .55s ease-out forwards;
+  transform:translate(-50%,-50%);
+}
+@keyframes spkFly{
+  0%{transform:translate(-50%,-50%) scale(1);opacity:1}
+  100%{transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(0);opacity:0}
+}
+.spl{
+  position:absolute;border-radius:50%;
+  border:2px solid rgba(30,140,255,.6);
+  animation:splRing .7s ease-out forwards;
+  transform:translate(-50%,-50%);
+}
+@keyframes splRing{
+  0%{width:4px;height:4px;opacity:.9}
+  100%{width:56px;height:56px;opacity:0}
+}
+.scrflash{
+  position:fixed;inset:0;pointer-events:none;z-index:400;
+  animation:scrf .4s ease-out forwards;
+}
+@keyframes scrf{0%{opacity:.45}100%{opacity:0}}
+.shkAnim{animation:shk .32s ease-out}
+@keyframes shk{
+  0%,100%{transform:none}
+  15%{transform:translate(-5px,3px)}
+  30%{transform:translate(5px,-3px)}
+  50%{transform:translate(-4px,4px)}
+  70%{transform:translate(3px,-2px)}
+}
+.wipeEl{
+  position:fixed;inset:0;z-index:240;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(0,20,40,.92) 50%,transparent);
+  animation:wipeA .55s ease-out forwards;
+}
+@keyframes wipeA{
+  0%{transform:translateX(-100%)}
+  60%{transform:translateX(0)}
+  100%{transform:translateX(100%);opacity:0}
+}
+.dmgtoast{
+  position:fixed;right:16px;top:74px;z-index:350;
+  background:rgba(6,16,30,.97);border:1px solid var(--border);
+  border-radius:5px;padding:9px 14px;
+  font-size:10px;letter-spacing:.08em;line-height:1.5;
+  animation:toastIn .25s ease-out,toastOut 3s .6s ease-out forwards;
+  pointer-events:none;max-width:260px;
+}
+@keyframes toastIn{from{transform:translateX(10px);opacity:0}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-8px)}}
+.confetti-p{
+  position:fixed;pointer-events:none;z-index:500;
+  animation:cfFall var(--dur,2.5s) linear forwards;
+}
+@keyframes cfFall{
+  0%{transform:translateY(-20px) rotate(0);opacity:1}
+  100%{transform:translateY(110vh) rotate(var(--rot,360deg));opacity:.2}
+}
+</style>
+</head>
+<body>
+<canvas id="waveCvs"></canvas>
+<div id="fxLayer"></div>
+
+<div id="app">
+  <!-- TITLE -->
+  <div id="titleBar">
+    <div>
+      <div class="tb-title">⚓ Naval Warfare · 6-Player Battleship</div>
+      <div class="tb-sub">TACTICAL ENGAGEMENT SYSTEM · CINEMATIC EDITION</div>
+    </div>
+    <div class="tb-right">
+      <button class="hud-btn" id="muteBtn" onclick="toggleMute()">🔊 SOUND</button>
+    </div>
+  </div>
+
+  <!-- START SCREEN -->
+  <div id="startScreen" class="screen active">
+    <div class="s-head">
+      <h2>FLEET CONFIGURATION</h2>
+      <p>Assign commanders · set engagement parameters · deploy for battle</p>
+    </div>
+    <div class="psetup-grid" id="psetupGrid"></div>
+    <button class="big-btn" onclick="goToPlacement()">⚓&nbsp;&nbsp;DEPLOY FLEET&nbsp;&nbsp;⚓</button>
+  </div>
+
+  <!-- PLACEMENT SCREEN -->
+  <div id="placeScreen" class="screen">
+    <div class="place-hdr">
+      <h2 id="placeTitle"></h2>
+      <p id="placeSub"></p>
+    </div>
+    <div class="cgrid-wrap">
+      <div class="coord-row-top" id="pCoordTop"></div>
+      <div class="cside-wrap">
+        <div class="coord-col-side" id="pCoordSide"></div>
+        <div id="placeGrid"></div>
+      </div>
+    </div>
+    <div class="ship-pal" id="shipPal"></div>
+    <div class="pact">
+      <button class="pact-btn" onclick="rotShip()">↻ ROTATE [R]</button>
+      <button class="pact-btn" onclick="randPlace()">⚡ RANDOMIZE</button>
+      <button class="pact-btn pri" onclick="confirmPlace()">✓ CONFIRM DEPLOYMENT</button>
+    </div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="gameScreen" class="screen">
+    <div class="warroom">
+      <!-- Left: Your fleet -->
+      <div class="fleet-panel" id="fleetPanel">
+        <div class="fleet-title">YOUR FLEET</div>
+        <div class="own-grid-wrap">
+          <div class="own-grid" id="ownGrid"></div>
+        </div>
+        <div class="fleet-ships" id="fleetShips"></div>
+      </div>
+      <!-- Center: Tactical display -->
+      <div class="tac-panel no-tgt" id="tacPanel">
+        <div class="tac-header">
+          <div>
+            <div class="tac-target-label">TARGETING</div>
+            <div class="tac-target-name" id="tacName">— SELECT ENEMY —</div>
+          </div>
+          <div class="tac-status na" id="tacStatus">NO TARGET</div>
+        </div>
+        <div class="tac-inner" id="tacInner">
+          <div class="tac-coord-top" id="tacCoordTop"></div>
+          <div style="display:flex">
+            <div class="tac-coord-side" id="tacCoordSide"></div>
+            <div class="tac-grid" id="tacGrid"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Right: Enemy roster -->
+      <div class="roster-panel" id="rosterPanel">
+        <div class="roster-title">ENEMY VESSELS</div>
+        <!-- populated by JS -->
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div class="statusbar">
+      <div id="turnPanel">
+        <div class="tp-lbl">ACTIVE COMMANDER</div>
+        <div class="tp-name" id="tpName">—</div>
+        <div class="tp-rank" id="tpRank">—</div>
+        <div class="tp-msg" id="tpMsg">Awaiting orders...</div>
+        <div class="tp-acc" id="tpAcc"></div>
+      </div>
+      <div id="battleLog"></div>
+      <div id="statsPanel">
+        <div style="font-size:8px;letter-spacing:.2em;color:var(--dim);margin-bottom:5px;border-bottom:1px solid var(--border2);padding-bottom:3px">FLEET STATUS</div>
+        <div id="spRows"></div>
+      </div>
+    </div>
+  </div>
+</div><!-- /app -->
+
+<!-- PASS SCREEN -->
+<div id="passScreen">
+  <div class="pass-inner">
+    <div class="pass-eyebrow">⚓ NAVAL WARFARE</div>
+    <div class="pass-rule"></div>
+    <div class="pass-directive">PASS THE DEVICE TO</div>
+    <div class="pass-name" id="passName">—</div>
+    <div class="pass-rank" id="passRank">—</div>
+    <div class="pass-rule"></div>
+    <div class="pass-hint">Keep screen face-down while passing<br>Only look when you have the device</div>
+    <button class="pass-btn" id="passBtn" onclick="beginMyTurn()">▶&nbsp;&nbsp;I'M READY — BEGIN TURN</button>
+  </div>
+  <div class="pass-anchor">Screen is hidden · Pass safely</div>
+</div>
+
+<!-- VICTORY OVERLAY -->
+<div class="overlay" id="vicOverlay" style="display:none">
+  <div class="ov-box" id="vicBox">
+    <h2>VICTORY</h2>
+    <p id="vicText"></p>
+    <table class="stbl" id="vicStbl">
+      <thead><tr><th>Commander</th><th>Shots</th><th>Hits</th><th>Accuracy</th><th>Sunk</th></tr></thead>
+      <tbody id="vicTbody"></tbody>
+    </table>
+    <button class="ov-btn" onclick="resetGame()">⚓ NEW BATTLE</button>
+  </div>
+</div>
+
+<script>
+// ══════════════════════ WAVE CANVAS ══
+(()=>{
+  const cvs=document.getElementById('waveCvs');
+  const ctx=cvs.getContext('2d');
+  let t=0;
+  const resize=()=>{cvs.width=innerWidth;cvs.height=innerHeight};
+  resize();addEventListener('resize',resize);
+  const draw=()=>{
+    ctx.clearRect(0,0,cvs.width,cvs.height);
+    for(let y=0;y<cvs.height;y+=20){
+      ctx.beginPath();
+      for(let x=0;x<=cvs.width;x+=5){
+        const w=Math.sin(x*.011+y*.007+t)*4.5+Math.sin(x*.006+y*.013+t*1.2)*3;
+        x===0?ctx.moveTo(x,y+w):ctx.lineTo(x,y+w);
+      }
+      ctx.strokeStyle=`rgba(16,60,110,${.012+Math.sin(y*.013+t)*.004})`;
+      ctx.lineWidth=1;ctx.stroke();
+    }
+    t+=.007;requestAnimationFrame(draw);
+  };
+  draw();
+})();
+
+// ══════════════════════ AUDIO ══
+let actx=null,muted=false;
+const gActx=()=>{if(!actx)actx=new(AudioContext||webkitAudioContext)();return actx};
+const toggleMute=()=>{
+  muted=!muted;
+  const b=document.getElementById('muteBtn');
+  b.textContent=muted?'🔇 MUTED':'🔊 SOUND';
+  b.classList.toggle('off',muted);
+};
+const tone=(f,type,dur,vol,atk=.01,dec=.1)=>{
+  if(muted)return;
+  try{
+    const ac=gActx(),o=ac.createOscillator(),g=ac.createGain();
+    o.connect(g);g.connect(ac.destination);
+    o.type=type;o.frequency.value=f;
+    g.gain.setValueAtTime(0,ac.currentTime);
+    g.gain.linearRampToValueAtTime(vol,ac.currentTime+atk);
+    g.gain.exponentialRampToValueAtTime(.0005,ac.currentTime+dur);
+    o.start(ac.currentTime);o.stop(ac.currentTime+dur+.05);
+  }catch(e){}
+};
+const noise=(dur,vol,lp=800)=>{
+  if(muted)return;
+  try{
+    const ac=gActx(),buf=ac.createBuffer(1,ac.sampleRate*dur,ac.sampleRate),d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    const src=ac.createBufferSource();src.buffer=buf;
+    const flt=ac.createBiquadFilter();flt.type='lowpass';flt.frequency.value=lp;
+    const g=ac.createGain();
+    src.connect(flt);flt.connect(g);g.connect(ac.destination);
+    g.gain.setValueAtTime(vol,ac.currentTime);
+    g.gain.exponentialRampToValueAtTime(.0005,ac.currentTime+dur);
+    src.start();src.stop(ac.currentTime+dur+.05);
+  }catch(e){}
+};
+const SFX={
+  // Cannon fire: sharp transient punch
+  fire(){
+    tone(200,'square',.06,.18,.002,.05);
+    noise(.15,.12,500);
+    setTimeout(()=>tone(140,'sawtooth',.12,.1,.003,.1),30);
+  },
+  // Hit: deep satisfying naval explosion - low rumble, no harsh sawtooth
+  hit(){
+    if(muted)return;
+    try{
+      const ac=gActx();
+      // Pitch-dropping sine boom
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.type='sine';o.frequency.setValueAtTime(100,ac.currentTime);
+      o.frequency.exponentialRampToValueAtTime(22,ac.currentTime+.9);
+      g.gain.setValueAtTime(.55,ac.currentTime);
+      g.gain.exponentialRampToValueAtTime(.0005,ac.currentTime+1.0);
+      o.connect(g);g.connect(ac.destination);
+      o.start();o.stop(ac.currentTime+1.1);
+    }catch(e){}
+    noise(.65,.16,380);                         // deep rumble
+    setTimeout(()=>tone(55,'sine',.55,.22,.008,.5),100); // second thump
+  },
+  // Miss: water splash - airy, higher
+  splash(){
+    noise(.3,.1,600);
+    tone(340,'sine',.18,.09,.004,.16);
+    setTimeout(()=>tone(260,'sine',.25,.06,.006,.22),80);
+  },
+  // Sunk: full dramatic sinking
+  sunk(){
+    SFX.hit();
+    setTimeout(()=>{noise(.9,.22,1400);tone(48,'sine',.9,.25,.01,.8);},180);
+    setTimeout(()=>tone(36,'sine',1.1,.15,.02,1.0),550);
+  },
+  turn(){ tone(460,'square',.07,.07,.003,.06);setTimeout(()=>tone(580,'square',.07,.055,.003,.06),100); },
+  ping(){ tone(820,'sine',.13,.05,.003,.12); },
+  sonar(){ tone(640,'sine',.28,.07,.004,.25);setTimeout(()=>tone(520,'sine',.22,.04,.004,.2),160); },
+  ready(){ tone(380,'triangle',.1,.08,.004,.09);setTimeout(()=>tone(480,'triangle',.1,.06,.004,.09),110); },
+  victory(){
+    [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>tone(f,'triangle',.45,.1,.008,.4),i*150));
+  },
+};
+
+// ══════════════════════ CONSTANTS ══
+const G=10,COLS='ABCDEFGHIJ'.split('');
+const SHIPS=[
+  {name:'Carrier',    abbr:'CV',size:5},
+  {name:'Battleship', abbr:'BB',size:4},
+  {name:'Cruiser',    abbr:'CA',size:3},
+  {name:'Submarine',  abbr:'SS',size:3},
+  {name:'Destroyer',  abbr:'DD',size:2},
+];
+const RANKS=['Admiral','Captain','Commander','Commodore','Lieutenant','Ensign'];
+const PCSS=['var(--p1)','var(--p2)','var(--p3)','var(--p4)','var(--p5)','var(--p6)'];
+const PCLS=['c0','c1','c2','c3','c4','c5'];
+
+// ══════════════════════ STATE ══
+let players=[],curP=0,placingIdx=0;
+let selShip=0,orient='h',placed=[];
+let gamePhase='start';
+let tacTarget=-1;          // which enemy is shown in tactical display
+let pendingPassTo=-1;      // player index waiting for pass-screen confirm
+
+// ══════════════════════ START SCREEN ══
+const initStart=()=>{
+  const defaults=['USS Enterprise','HMS Warspite','HMAS Canberra','IJN Yamato','KMS Bismarck','INS Vikrant'];
+  const g=document.getElementById('psetupGrid');g.innerHTML='';
+  for(let i=0;i<6;i++){
+    g.innerHTML+=`
+    <div class="pcard c${i}">
+      <div class="pcard-rank">${RANKS[i].toUpperCase()}</div>
+      <div class="pcard-num">VESSEL ${i+1}</div>
+      <label>SHIP NAME</label>
+      <input type="text" id="pn${i}" value="${defaults[i]}" maxlength="22">
+      <label>COMMANDER</label>
+      <div class="tog">
+        <button id="th${i}" class="${i===0?'on':''}" onclick="setT(${i},'h')">HUMAN</button>
+        <button id="ta${i}" class="${i===0?'':'on'}" onclick="setT(${i},'a')">AI</button>
+      </div>
+    </div>`;
+  }
+};
+const setT=(i,t)=>{
+  document.getElementById(`th${i}`).classList.toggle('on',t==='h');
+  document.getElementById(`ta${i}`).classList.toggle('on',t==='a');
+};
+
+// ══════════════════════ PLACEMENT ══
+const goToPlacement=()=>{
+  players=[];
+  for(let i=0;i<6;i++){
+    const name=(document.getElementById(`pn${i}`).value||`Player ${i+1}`).trim();
+    const isAI=!document.getElementById(`th${i}`).classList.contains('on');
+    players.push({
+      name,isAI,rank:RANKS[i],pIdx:i,
+      grid:new Uint8Array(G*G),
+      ships:[],shots:0,hits:0,shipsSunk:0,
+      eliminated:false,aiTargets:[],aiHunting:false,
+    });
+  }
+  placingIdx=0;gamePhase='placement';
+  showScreen('placeScreen');
+  doPlacementFor(0);
+};
+
+const doPlacementFor=idx=>{
+  if(idx>=6){startGame();return;}
+  const p=players[idx];
+  if(p.isAI){autoPlace(idx);doPlacementFor(idx+1);return;}
+  selShip=0;orient='h';placed=new Array(SHIPS.length).fill(false);
+  placingIdx=idx;
+  document.getElementById('placeTitle').style.color=PCSS[idx];
+  document.getElementById('placeTitle').textContent=`${p.name.toUpperCase()} — PLACE YOUR FLEET`;
+  document.getElementById('placeSub').textContent='Click to position · R to rotate · Randomize for quick deploy';
+  buildPlaceCoords();
+  buildPlaceGrid(idx);
+  renderShipPal();
+};
+
+const buildPlaceCoords=()=>{
+  document.getElementById('pCoordTop').innerHTML='<span></span>'+COLS.map(l=>`<span>${l}</span>`).join('');
+  document.getElementById('pCoordSide').innerHTML=
+    Array.from({length:10},(_,i)=>`<span>${i+1}</span>`).join('');
+};
+
+const buildPlaceGrid=pid=>{
+  const g=document.getElementById('placeGrid');g.innerHTML='';
+  g.style.cssText='display:grid;grid-template-columns:repeat(10,34px);grid-template-rows:repeat(10,34px);gap:2px';
+  const p=players[pid];
+  for(let r=0;r<G;r++) for(let c=0;c<G;c++){
+    const el=document.createElement('div');
+    el.className='pc'+(p.grid[r*G+c]===1?' placed':'');
+    el.dataset.r=r;el.dataset.c=c;
+    // render ship block if placed
+    if(p.grid[r*G+c]===1) renderShipCell(el,pid,r,c);
+    el.addEventListener('click',()=>doPl(r,c));
+    el.addEventListener('mouseenter',()=>showPv(pid,r,c));
+    el.addEventListener('mouseleave',clearPv);
+    g.appendChild(el);
+  }
+};
+
+const renderShipCell=(el,pid,r,c)=>{
+  // color the ship block
+  el.style.background='rgba(15,50,90,.9)';
+  el.style.borderColor='rgba(25,100,160,.7)';
+};
+
+const renderShipPal=()=>{
+  const pal=document.getElementById('shipPal');pal.innerHTML='';
+  SHIPS.forEach((s,i)=>{
+    const d=document.createElement('div');
+    d.className='schip'+(i===selShip?' sel':'')+(placed[i]?' done':'');
+    d.innerHTML=`<div class="schip-bar" style="width:${s.size*8}px"></div><span>${s.name}&nbsp;(${s.size})</span>`;
+    d.onclick=()=>{if(!placed[i]){selShip=i;renderShipPal();}};
+    pal.appendChild(d);
+  });
+};
+
+let pvEls=[];
+const showPv=(pid,r,c)=>{
+  if(placed[selShip])return;
+  clearPv();
+  const cells=sCells(r,c,SHIPS[selShip].size,orient);
+  const ok=canPl(pid,cells);
+  cells.forEach(({r:pr,c:pc})=>{
+    if(pr<0||pr>=G||pc<0||pc>=G)return;
+    const el=plCell(pr,pc);if(!el)return;
+    el.classList.add(ok?'pv-ok':'pv-bad');pvEls.push(el);
+  });
+};
+const clearPv=()=>{pvEls.forEach(el=>el.classList.remove('pv-ok','pv-bad'));pvEls=[];};
+const plCell=(r,c)=>document.querySelector(`#placeGrid [data-r="${r}"][data-c="${c}"]`);
+const sCells=(r,c,sz,o)=>Array.from({length:sz},(_,i)=>o==='h'?{r,c:c+i}:{r:r+i,c});
+const canPl=(pid,cells)=>cells.every(({r,c})=>r>=0&&r<G&&c>=0&&c<G&&players[pid].grid[r*G+c]===0);
+
+const doPl=(r,c)=>{
+  if(placed[selShip])return;
+  const s=SHIPS[selShip];
+  const cells=sCells(r,c,s.size,orient);
+  if(!canPl(placingIdx,cells))return;
+  const p=players[placingIdx];
+  const idxs=cells.map(({r,c})=>r*G+c);
+  idxs.forEach(i=>p.grid[i]=1);
+  p.ships.push({name:s.name,abbr:s.abbr,size:s.size,cells:idxs,sunk:false,hits:0});
+  placed[selShip]=true;
+  const nxt=SHIPS.findIndex((_,i)=>i>selShip&&!placed[i]);
+  if(nxt>=0)selShip=nxt;
+  buildPlaceGrid(placingIdx);renderShipPal();SFX.ping();
+};
+
+const rotShip=()=>{orient=orient==='h'?'v':'h';SFX.ping();};
+document.addEventListener('keydown',e=>{if(e.key==='r'||e.key==='R')rotShip();});
+
+const randPlace=()=>{
+  autoPlace(placingIdx);
+  placed=new Array(SHIPS.length).fill(true);
+  buildPlaceGrid(placingIdx);renderShipPal();SFX.sonar();
+};
+
+const autoPlace=pid=>{
+  const p=players[pid];p.grid.fill(0);p.ships=[];
+  SHIPS.forEach(s=>{
+    let done=false;
+    while(!done){
+      const o=Math.random()<.5?'h':'v';
+      const r=Math.floor(Math.random()*G),c=Math.floor(Math.random()*G);
+      const cells=sCells(r,c,s.size,o);
+      if(canPl(pid,cells)){
+        const idxs=cells.map(({r,c})=>r*G+c);
+        idxs.forEach(i=>p.grid[i]=1);
+        p.ships.push({name:s.name,abbr:s.abbr,size:s.size,cells:idxs,sunk:false,hits:0});
+        done=true;
+      }
+    }
+  });
+};
+
+const confirmPlace=()=>{
+  if(placed.filter(Boolean).length<SHIPS.length){alert('Place all ships first!');return;}
+  doPlacementFor(placingIdx+1);
+};
+
+// ══════════════════════ GAME START ══
+const startGame=()=>{
+  gamePhase='game';curP=0;tacTarget=-1;
+  showScreen('gameScreen');
+  buildGameUI();
+  // show pass screen for first player (even if human)
+  showPassScreen(0);
+};
+
+// ══════════════════════ GAME UI BUILD ══
+const buildGameUI=()=>{
+  buildTacCoords();
+  buildTacGrid();
+  buildRoster();
+  updateFleetPanel();
+  updateTurnUI();
+  updateStats();
+};
+
+const buildTacCoords=()=>{
+  document.getElementById('tacCoordTop').innerHTML=
+    '<span></span>'+COLS.map(l=>`<span>${l}</span>`).join('');
+  document.getElementById('tacCoordSide').innerHTML=
+    Array.from({length:10},(_,i)=>`<span>${i+1}</span>`).join('');
+};
+
+const buildTacGrid=()=>{
+  const g=document.getElementById('tacGrid');g.innerHTML='';
+  for(let i=0;i<G*G;i++){
+    const c=document.createElement('div');
+    c.className='tgc';c.id=`tgc${i}`;
+    c.addEventListener('click',()=>handleAttack(tacTarget,i));
+    g.appendChild(c);
+  }
+};
+
+const refreshTacGrid=()=>{
+  const pi=tacTarget;
+  const hasTarget=pi>=0&&!players[pi].eliminated;
+  const tac=document.getElementById('tacPanel');
+  tac.classList.toggle('no-tgt',!hasTarget||players[curP].eliminated);
+  if(pi<0){
+    document.getElementById('tacName').textContent='— SELECT ENEMY —';
+    document.getElementById('tacStatus').textContent='NO TARGET';
+    document.getElementById('tacStatus').className='tac-status na';
+  } else {
+    const p=players[pi];
+    document.getElementById('tacName').textContent=p.name;
+    document.getElementById('tacName').style.color=PCSS[pi];
+    if(p.eliminated){
+      document.getElementById('tacStatus').textContent='ELIMINATED';
+      document.getElementById('tacStatus').className='tac-status na';
+    } else {
+      const alive=p.ships.filter(s=>!s.sunk).length;
+      document.getElementById('tacStatus').textContent=`${alive} VESSELS ACTIVE`;
+      document.getElementById('tacStatus').className='tac-status ok';
+      document.getElementById('tacStatus').style.color=PCSS[pi];
+    }
+  }
+  for(let i=0;i<G*G;i++){
+    const el=document.getElementById(`tgc${i}`);if(!el)continue;
+    el.className='tgc';
+    if(pi>=0){
+      const v=players[pi].grid[i];
+      if(v===2)el.classList.add('thit');
+      else if(v===3)el.classList.add('tmiss');
+      else if(!players[pi].eliminated&&!players[curP].eliminated&&pi!==curP)
+        el.classList.add('tkill');
+    }
+  }
+};
+
+const buildRoster=()=>{
+  const rp=document.getElementById('rosterPanel');
+  rp.innerHTML='<div class="roster-title">ENEMY VESSELS</div>';
+  players.forEach((p,i)=>{
+    const card=document.createElement('div');
+    card.className=`rcard ${PCLS[i]}${p.eliminated?' relim':''}${i===curP?' rself':''}`;
+    card.id=`rcard${i}`;
+    const alive=p.ships.filter(s=>!s.sunk).length;
+    card.innerHTML=`
+      <div class="rcard-name">${p.name}</div>
+      <div class="rcard-stats">${p.eliminated?'☠ ELIMINATED':`${alive} ships · ${p.shots?Math.round(p.hits/p.shots*100):0}% acc`}</div>
+      <div class="rmini" id="rmini${i}"></div>`;
+    card.addEventListener('click',()=>{
+      if(i===curP||p.eliminated||players[curP].eliminated)return;
+      selectTarget(i);SFX.sonar();
+    });
+    rp.appendChild(card);
+    buildRMini(i);
+  });
+};
+
+const buildRMini=pi=>{
+  const g=document.getElementById(`rmini${pi}`);if(!g)return;
+  g.innerHTML='';
+  const p=players[pi];
+  for(let i=0;i<G*G;i++){
+    const c=document.createElement('div');
+    c.className='rmc';
+    const v=p.grid[i];
+    if(v===2)c.classList.add('rh');
+    else if(v===3)c.classList.add('rm');
+    g.appendChild(c);
+  }
+};
+
+const refreshRoster=()=>{
+  players.forEach((p,i)=>{
+    const card=document.getElementById(`rcard${i}`);if(!card)return;
+    card.className=`rcard ${PCLS[i]}${p.eliminated?' relim':''}${i===curP?' rself':''}${i===tacTarget&&i!==curP&&!p.eliminated?' rsel':''}`;
+    const alive=p.ships.filter(s=>!s.sunk).length;
+    const stats=card.querySelector('.rcard-stats');
+    if(stats)stats.textContent=p.eliminated?'☠ ELIMINATED':`${alive} ships · ${p.shots?Math.round(p.hits/p.shots*100):0}% acc`;
+    buildRMini(i);
+  });
+};
+
+const selectTarget=pi=>{
+  if(pi===curP||players[pi].eliminated)return;
+  tacTarget=pi;
+  refreshTacGrid();
+  refreshRoster();
+};
+
+const updateFleetPanel=()=>{
+  // Own grid
+  const og=document.getElementById('ownGrid');og.innerHTML='';
+  const p=players[curP];
+  for(let i=0;i<G*G;i++){
+    const c=document.createElement('div');
+    c.style.cssText='border-radius:1px;border:1px solid rgba(15,40,60,.5);position:relative;';
+    const v=p.grid[i];
+    if(v===1)c.style.background='rgba(12,50,90,.85)';
+    else if(v===2){
+      c.style.background='rgba(50,8,0,.9)';
+      c.innerHTML='<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#ff3300">✕</div>';
+    }
+    else if(v===3)c.style.background='rgba(3,14,26,.9)';
+    else c.style.background='rgba(3,12,22,.9)';
+    og.appendChild(c);
+  }
+  // Ship status bars
+  const fs=document.getElementById('fleetShips');fs.innerHTML='';
+  p.ships.forEach(ship=>{
+    const hp=ship.size-ship.hits;
+    const pct=Math.round(hp/ship.size*100);
+    const col=pct>60?'#18e07a':pct>30?'#d09020':'#e03010';
+    const row=document.createElement('div');row.className='fship-row'+(ship.sunk?' fship-sunk':'');
+    row.innerHTML=`<span class="fship-icon">${ship.sunk?'☠':'⚓'}</span>
+      <span class="fship-name">${ship.abbr} ${ship.name}</span>
+      <div class="fship-hp"><div class="fship-hp-fill" style="width:${pct}%;background:${col}"></div></div>`;
+    fs.appendChild(row);
+  });
+};
+
+const updateTurnUI=()=>{
+  const p=players[curP];
+  document.getElementById('tpName').textContent=p.name;
+  document.getElementById('tpName').style.color=PCSS[curP];
+  document.getElementById('tpRank').textContent=p.rank.toUpperCase();
+  document.getElementById('tpMsg').textContent=
+    p.isAI?'Computing optimal trajectory...':
+    tacTarget>=0?`Targeting ${players[tacTarget].name} — select coordinates`:'Select an enemy vessel to engage';
+  const acc=p.shots?Math.round(p.hits/p.shots*100):0;
+  document.getElementById('tpAcc').textContent=`Shots: ${p.shots} · Accuracy: ${acc}%`;
+};
+
+const updateStats=()=>{
+  const rows=document.getElementById('spRows');rows.innerHTML='';
+  [...players].sort((a,b)=>b.ships.filter(s=>!s.sunk).length-a.ships.filter(s=>!s.sunk).length)
+    .forEach(p=>{
+      const alive=p.ships.filter(s=>!s.sunk).length;
+      const acc=p.shots?Math.round(p.hits/p.shots*100):0;
+      const row=document.createElement('div');row.className='sp-row';
+      row.innerHTML=`<div class="sp-dot" style="background:${PCSS[p.pIdx]}"></div>
+        <div class="sp-name" style="color:${PCSS[p.pIdx]}">${p.name}</div>
+        <div class="sp-ships">${p.eliminated?'☠':alive+'⚓'}</div>
+        <div class="sp-acc">${acc}%</div>`;
+      rows.appendChild(row);
+    });
+};
+
+// ══════════════════════ PASS SCREEN ══
+const showPassScreen=pi=>{
+  // Called before each human player's turn
+  const p=players[pi];
+  pendingPassTo=pi;
+  document.getElementById('passName').textContent=p.name.toUpperCase();
+  document.getElementById('passName').style.color=PCSS[pi];
+  document.getElementById('passRank').textContent=p.rank.toUpperCase();
+  document.getElementById('passScreen').classList.add('show');
+};
+
+const beginMyTurn=()=>{
+  document.getElementById('passScreen').classList.remove('show');
+  curP=pendingPassTo;pendingPassTo=-1;
+  // Reset tactical target if it's now eliminated
+  if(tacTarget>=0&&(players[tacTarget].eliminated||tacTarget===curP))tacTarget=-1;
+  updateFleetPanel();
+  updateTurnUI();
+  refreshRoster();
+  refreshTacGrid();
+  updateStats();
+  SFX.ready();
+  setTimeout(()=>maybeTriggerAI(),300);
+};
+
+// ══════════════════════ ATTACK FLOW ══
+const handleAttack=async(tgtPi,ci)=>{
+  if(gamePhase!=='game')return;
+  const att=players[curP];
+  if(att.isAI)return;
+  if(tgtPi<0||tgtPi===curP||players[tgtPi].eliminated||att.eliminated)return;
+  const tgt=players[tgtPi];
+  if(tgt.grid[ci]===2||tgt.grid[ci]===3)return;
+  await doAttack(curP,tgtPi,ci);
+};
+
+const doAttack=async(attPi,tgtPi,ci)=>{
+  const att=players[attPi],tgt=players[tgtPi];
+  const isHit=tgt.grid[ci]===1;
+  att.shots++;if(isHit)att.hits++;
+  SFX.fire();
+  await animMissile(attPi,tgtPi,ci,isHit);
+  tgt.grid[ci]=isHit?2:3;
+
+  let sunk=null;
+  if(isHit){
+    for(const sh of tgt.ships){
+      if(!sh.sunk&&sh.cells.includes(ci)){
+        sh.hits++;
+        if(sh.cells.every(c=>tgt.grid[c]===2)){sh.sunk=true;sunk=sh;att.shipsSunk++;}
+        break;
+      }
+    }
+  }
+
+  const allGone=tgt.ships.every(s=>s.sunk);
+  const r=Math.floor(ci/G),c=ci%G;
+  const coord=`${COLS[c]}${r+1}`;
+
+  if(allGone){
+    tgt.eliminated=true;
+    log(`☠ ${tgt.name} ELIMINATED by ${att.name}!`,'lelim');
+    toast(`☠ ELIMINATED\n${tgt.rank} ${tgt.name}'s fleet destroyed!`,'#e08000');
+    SFX.sunk();
+    if(tacTarget===tgtPi)tacTarget=-1;
+  } else if(sunk){
+    log(`💥 ${att.name} SANK ${tgt.name}'s ${sunk.name}!`,'lsunk');
+    toast(`💥 SHIP SUNK\n${tgt.name}'s ${sunk.name} destroyed at ${coord}`,'#e05010');
+    SFX.sunk();
+  } else if(isHit){
+    log(`${att.name} → ${tgt.name}: DIRECT HIT at ${coord}`,'lhit');
+    toast(`🎯 DIRECT HIT at ${coord}\nEnemy vessel damaged`,'#c03010');
+    SFX.hit();
+  } else {
+    log(`${att.name} → ${tgt.name}: miss at ${coord}`,'lmiss');
+    SFX.splash();
+  }
+
+  // Update roster mini map + own grid
+  updateFleetPanel();
+  refreshTacGrid();
+  refreshRoster();
+  updateStats();
+
+  // Check win
+  const alive=players.filter(p=>!p.eliminated);
+  if(alive.length===1){setTimeout(()=>showVictory(players.indexOf(alive[0])),500);return;}
+
+  nextTurn();
+};
+
+const nextTurn=()=>{
+  let n=(curP+1)%6,tries=0;
+  while(players[n].eliminated&&tries<6){n=(n+1)%6;tries++;}
+  wipe();SFX.turn();
+  // If next player is human → pass screen; if AI → fire immediately
+  if(!players[n].isAI){
+    setTimeout(()=>showPassScreen(n),400);
+  } else {
+    curP=n;tacTarget=-1;
+    updateFleetPanel();updateTurnUI();refreshRoster();refreshTacGrid();updateStats();
+    setTimeout(()=>maybeTriggerAI(),700);
+  }
+};
+
+const maybeTriggerAI=()=>{
+  if(gamePhase!=='game')return;
+  const p=players[curP];
+  if(!p.isAI||p.eliminated)return;
+  setTimeout(()=>runAI(),400);
+};
+
+const runAI=()=>{
+  const att=players[curP];if(att.eliminated){nextTurn();return;}
+  const enemies=players.map((p,i)=>({p,i})).filter(({p,i})=>i!==curP&&!p.eliminated);
+  if(!enemies.length)return;
+  enemies.sort((a,b)=>a.p.ships.filter(s=>!s.sunk).length-b.p.ships.filter(s=>!s.sunk).length);
+  let tgtPi=enemies[0].i;
+  if(att.aiHunting&&att.aiTargets.length>0){
+    const pend=att.aiTargets.filter(t=>t.pi===tgtPi);
+    if(!pend.length){att.aiHunting=false;}
+  }
+  const tgt=players[tgtPi];
+  let ci=-1;
+  if(att.aiHunting&&att.aiTargets.length>0){
+    const t=att.aiTargets.shift();tgtPi=t.pi;ci=t.cell;
+  }
+  if(ci<0){
+    const valid=[];
+    for(let i=0;i<G*G;i++)if(tgt.grid[i]!==2&&tgt.grid[i]!==3)valid.push(i);
+    if(!valid.length){nextTurn();return;}
+    ci=valid[Math.floor(Math.random()*valid.length)];
+  }
+  if(players[tgtPi].grid[ci]===1){
+    const r=Math.floor(ci/G),c=ci%G;
+    [[r-1,c],[r+1,c],[r,c-1],[r,c+1]].forEach(([nr,nc])=>{
+      if(nr>=0&&nr<G&&nc>=0&&nc<G){
+        const ni=nr*G+nc;
+        if(players[tgtPi].grid[ni]!==2&&players[tgtPi].grid[ni]!==3)
+          att.aiTargets.push({pi:tgtPi,cell:ni});
+      }
+    });
+    att.aiHunting=true;
+  }
+  // Show AI attacking on tactical display briefly
+  tacTarget=tgtPi;
+  refreshTacGrid();refreshRoster();
+  doAttack(curP,tgtPi,ci);
+};
+
+// ══════════════════════ MISSILE ANIMATION ══
+const cellCenter=(pi,ci,useOwn=false)=>{
+  let el;
+  if(useOwn){
+    // own grid cells
+    const og=document.getElementById('ownGrid');
+    if(og)el=og.children[ci];
+  } else if(pi===tacTarget){
+    el=document.getElementById(`tgc${ci}`);
+  } else {
+    const rm=document.getElementById(`rmini${pi}`);
+    if(rm)el=rm.children[ci];
+  }
+  if(!el)return{x:innerWidth/2,y:innerHeight/2};
+  const r=el.getBoundingClientRect();
+  return{x:r.left+r.width/2,y:r.top+r.height/2};
+};
+
+const animMissile=(fromPi,toPi,ci,isHit)=>new Promise(res=>{
+  const startCI=Math.floor(Math.random()*G*G);
+  const from=cellCenter(fromPi,startCI,true);
+  const to=toPi===tacTarget?{...cellCenter(toPi,ci)}:{...cellCenter(toPi,ci)};
+  const fl=document.getElementById('fxLayer');
+  const dot=document.createElement('div');
+  dot.className='msldot';dot.style.left=from.x+'px';dot.style.top=from.y+'px';
+  fl.appendChild(dot);
+  // trail dots
+  const trails=[];
+  for(let t=0;t<4;t++){
+    const tr=document.createElement('div');tr.className='msltrail';
+    const sz=3+t;tr.style.width=sz+'px';tr.style.height=sz+'px';
+    tr.style.left=from.x+'px';tr.style.top=from.y+'px';
+    fl.appendChild(tr);trails.push(tr);
+  }
+  const dur=460,t0=performance.now();
+  const step=now=>{
+    const t=Math.min((now-t0)/dur,1);
+    const e=t<.5?2*t*t:-1+(4-2*t)*t;
+    const x=from.x+(to.x-from.x)*e;
+    const y=from.y+(to.y-from.y)*e-Math.sin(Math.PI*t)*65;
+    dot.style.left=x+'px';dot.style.top=y+'px';
+    trails.forEach((tr,i)=>{
+      const lt=Math.max(0,t-(i+1)*.06);
+      const le=lt<.5?2*lt*lt:-1+(4-2*lt)*lt;
+      tr.style.left=(from.x+(to.x-from.x)*le)+'px';
+      tr.style.top=(from.y+(to.y-from.y)*le-Math.sin(Math.PI*lt)*65)+'px';
+      tr.style.opacity=(1-lt)*.5+'';
+    });
+    if(t<1)requestAnimationFrame(step);
+    else{
+      dot.remove();trails.forEach(t=>t.remove());
+      if(isHit){boom(to.x,to.y);shk();}
+      else spls(to.x,to.y);
+      setTimeout(res,330);
+    }
+  };
+  requestAnimationFrame(step);
+});
+
+const boom=(x,y)=>{
+  const fl=document.getElementById('fxLayer');
+  const flash=document.createElement('div');
+  flash.className='scrflash';
+  flash.style.background=`radial-gradient(circle at ${x}px ${y}px,rgba(255,90,0,.4) 0%,transparent 45%)`;
+  fl.appendChild(flash);setTimeout(()=>flash.remove(),450);
+  for(let i=0;i<26;i++){
+    const sp=document.createElement('div');sp.className='spk';
+    const a=Math.random()*Math.PI*2,d=20+Math.random()*75;
+    sp.style.left=x+'px';sp.style.top=y+'px';
+    sp.style.width=(3+Math.random()*8)+'px';sp.style.height=sp.style.width;
+    sp.style.setProperty('--dx',Math.cos(a)*d+'px');
+    sp.style.setProperty('--dy',Math.sin(a)*d+'px');
+    sp.style.background=['#ff4400','#ff8800','#ffc000','#ffffff','#ff2200'][Math.floor(Math.random()*5)];
+    sp.style.borderRadius=Math.random()>.3?'50%':'2px';
+    fl.appendChild(sp);setTimeout(()=>sp.remove(),620);
+  }
+};
+
+const spls=(x,y)=>{
+  const fl=document.getElementById('fxLayer');
+  for(let i=0;i<4;i++){
+    const r=document.createElement('div');r.className='spl';
+    r.style.left=x+'px';r.style.top=y+'px';
+    r.style.animationDelay=(i*.13)+'s';
+    fl.appendChild(r);setTimeout(()=>r.remove(),900);
+  }
+  for(let i=0;i<7;i++){
+    const sp=document.createElement('div');sp.className='spk';
+    const a=Math.random()*Math.PI*2,d=8+Math.random()*24;
+    sp.style.left=x+'px';sp.style.top=y+'px';
+    sp.style.width='4px';sp.style.height='4px';
+    sp.style.setProperty('--dx',Math.cos(a)*d+'px');
+    sp.style.setProperty('--dy',Math.sin(a)*d+'px');
+    sp.style.background='#1880d0';
+    fl.appendChild(sp);setTimeout(()=>sp.remove(),580);
+  }
+};
+
+const shk=()=>{
+  const el=document.getElementById('gameScreen');if(!el)return;
+  el.classList.add('shkAnim');setTimeout(()=>el.classList.remove('shkAnim'),350);
+};
+
+const wipe=()=>{
+  const el=document.createElement('div');el.className='wipeEl';
+  document.body.appendChild(el);setTimeout(()=>el.remove(),600);
+};
+
+// ══════════════════════ UI HELPERS ══
+const log=(text,cls)=>{
+  const bl=document.getElementById('battleLog');
+  const now=new Date();
+  const ts=[now.getHours(),now.getMinutes(),now.getSeconds()].map(n=>n.toString().padStart(2,'0')).join(':');
+  const row=document.createElement('div');row.className=`lr ${cls||''}`;
+  row.textContent=`[${ts}] ${text}`;
+  bl.insertBefore(row,bl.firstChild);
+};
+
+const toast=(msg,color='#5a9ec8')=>{
+  document.querySelectorAll('.dmgtoast').forEach(e=>e.remove());
+  const t=document.createElement('div');t.className='dmgtoast';
+  t.style.borderLeftColor=color;t.style.borderLeftWidth='3px';
+  t.textContent=msg;document.body.appendChild(t);
+  setTimeout(()=>t.remove(),4200);
+};
+
+// ══════════════════════ VICTORY ══
+const showVictory=winPi=>{
+  gamePhase='victory';
+  const w=players[winPi];
+  document.getElementById('vicBox').className=`ov-box vc${winPi}`;
+  document.getElementById('vicText').textContent=`${w.rank} ${w.name} commands the seas!`;
+  const tbody=document.getElementById('vicTbody');tbody.innerHTML='';
+  players.forEach(p=>{
+    const acc=p.shots?Math.round(p.hits/p.shots*100):0;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td style="color:${PCSS[p.pIdx]}">${p.eliminated?'☠':' ★'} ${p.name}</td>
+      <td>${p.shots}</td><td>${p.hits}</td><td>${acc}%</td><td>${p.shipsSunk}</td>`;
+    tbody.appendChild(tr);
+  });
+  document.getElementById('vicOverlay').style.display='flex';
+  SFX.victory();confetti();
+  for(let i=0;i<14;i++)setTimeout(()=>boom(80+Math.random()*(innerWidth-160),80+Math.random()*(innerHeight-160)),i*200);
+};
+
+const confetti=()=>{
+  const cols=[...PCSS,'#ffffff','#c8a030'];
+  for(let i=0;i<90;i++){
+    const el=document.createElement('div');el.className='confetti-p';
+    el.style.left=Math.random()*100+'vw';
+    el.style.background=cols[Math.floor(Math.random()*cols.length)];
+    el.style.width=(5+Math.random()*7)+'px';el.style.height=el.style.width;
+    el.style.setProperty('--dur',(2.2+Math.random()*3.5)+'s');
+    el.style.setProperty('--rot',(Math.random()*720-360)+'deg');
+    el.style.animationDelay=Math.random()*1.2+'s';
+    el.style.borderRadius=Math.random()>.5?'50%':'2px';
+    document.body.appendChild(el);setTimeout(()=>el.remove(),6000);
+  }
+};
+
+const resetGame=()=>{
+  document.getElementById('vicOverlay').style.display='none';
+  gamePhase='start';players=[];curP=0;tacTarget=-1;
+  showScreen('startScreen');initStart();
+};
+
+// ══════════════════════ SCREEN SWITCH ══
+const showScreen=id=>{
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('app').scrollTop=0;
+};
+
+// ══════════════════════ BOOT ══
+initStart();
+</script>
+</body>
+</html>
