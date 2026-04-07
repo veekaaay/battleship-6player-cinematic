@@ -206,9 +206,21 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
 .pc.pvok{background:rgba(0,85,160,.32);border-color:rgba(0,175,240,.6)}
 .pc.pvbad{background:rgba(160,0,0,.24);border-color:rgba(230,38,38,.56)}
 .pc.placed{
-  background:linear-gradient(135deg,rgba(10,42,72,.95),rgba(14,54,90,.9));
-  border-color:rgba(22,80,140,.75);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+  background:
+    linear-gradient(180deg,
+      rgba(195,210,225,.92) 0%,
+      rgba(145,165,185,.88) 18%,
+      rgba(100,125,148,.9)  55%,
+      rgba(72,96,118,.95)   100%);
+  border-color:rgba(200,218,235,.55);
+  box-shadow:
+    inset 0 1px 0 rgba(240,248,255,.35),
+    inset 0 -1px 0 rgba(0,0,0,.25),
+    inset 1px 0 0 rgba(255,255,255,.07);
+}
+.pc.placed::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent,transparent 4px,rgba(0,0,0,.06) 4px,rgba(0,0,0,.06) 5px);
 }
 /* ship palette */
 .spal{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px 0}
@@ -220,12 +232,17 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
 }
 .schip .segs{display:flex;gap:2px}
 .schip .seg{
-  width:9px;height:13px;
-  background:linear-gradient(180deg,rgba(20,70,120,.9),rgba(14,50,90,.9));
-  border:1px solid rgba(28,100,170,.7);border-radius:1px;
+  width:9px;height:13px;border-radius:1px;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,rgba(170,190,210,.88) 0%,rgba(110,135,158,.86) 40%,rgba(75,100,125,.9) 100%);
+  border:1px solid rgba(185,205,225,.55);
+  box-shadow:inset 0 1px 0 rgba(235,248,255,.28),inset 0 -1px 0 rgba(0,0,0,.2);
 }
 .schip.sel{border-color:#1a78c8;background:rgba(7,26,50,.9);color:#60a8d8}
-.schip.sel .seg{background:linear-gradient(180deg,rgba(30,100,190,.95),rgba(20,70,150,.9));border-color:rgba(50,150,230,.85)}
+.schip.sel .seg{
+  background:linear-gradient(180deg,rgba(100,160,210,.95) 0%,rgba(50,110,175,.9) 45%,rgba(30,80,145,.92) 100%);
+  border-color:rgba(80,170,240,.8);
+  box-shadow:inset 0 1px 0 rgba(180,230,255,.3),inset 0 -1px 0 rgba(0,0,0,.25);
+}
 .schip.done{opacity:.28;text-decoration:line-through;pointer-events:none}
 .pacts{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
 .pact{
@@ -431,8 +448,21 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
   border-radius:1px;position:relative;transition:background .2s;
 }
 .ogc.s{
-  background:linear-gradient(145deg,rgba(10,42,74,.92),rgba(14,54,90,.88));
-  border-color:rgba(20,78,138,.7);
+  background:
+    linear-gradient(180deg,
+      rgba(188,205,222,.9)  0%,
+      rgba(138,160,180,.88) 18%,
+      rgba(95,120,145,.9)   55%,
+      rgba(68,90,112,.95)   100%);
+  border-color:rgba(195,212,230,.5);
+  box-shadow:
+    inset 0 1px 0 rgba(235,246,255,.32),
+    inset 0 -1px 0 rgba(0,0,0,.22);
+}
+.ogc.s::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent,transparent 3px,rgba(0,0,0,.07) 3px,rgba(0,0,0,.07) 4px);
+  z-index:1;
 }
 /* hit on own ship — flashing damage */
 .ogc.h{background:radial-gradient(circle,rgba(70,12,0,.95),rgba(40,6,0,.9));border-color:rgba(150,30,0,.4)}
@@ -794,7 +824,19 @@ const ns=(dur,vol,lp=800)=>{
   }catch(e){}
 };
 const SFX={
-  fire(){ns(.12,.06,250);tn(180,'sine',.04,.15,.003)},
+  fire(){
+    try{
+      const a=gA(),o=a.createOscillator(),g=a.createGain();
+      o.type='sine';
+      o.frequency.setValueAtTime(180,a.currentTime);
+      o.frequency.exponentialRampToValueAtTime(900,a.currentTime+.07);
+      g.gain.setValueAtTime(0,a.currentTime);
+      g.gain.linearRampToValueAtTime(.055,a.currentTime+.008);
+      g.gain.exponentialRampToValueAtTime(.0005,a.currentTime+.11);
+      o.connect(g);g.connect(a.destination);o.start(a.currentTime);o.stop(a.currentTime+.13);
+    }catch(e){}
+    setTimeout(()=>ns(.1,.025,4500),30);
+  },
   hit(){
     try{const a=gA(),o=a.createOscillator(),g=a.createGain();
       o.type='sine';o.frequency.setValueAtTime(105,a.currentTime);
