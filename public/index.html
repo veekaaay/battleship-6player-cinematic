@@ -945,6 +945,7 @@ function drawShipSVG(ships,gridEl){
 
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
   svg.setAttribute('viewBox',`0 0 ${gr.width} ${gr.height}`);
+  svg.setAttribute('pointer-events','none'); // critical: block no clicks
   svg.classList.add('ship-svg');
 
   ships.forEach(ship=>{
@@ -972,6 +973,7 @@ function drawShipSVG(ships,gridEl){
 
     const st=SHIP_STYLE[ship.name]||SHIP_STYLE['Destroyer'];
     const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('pointer-events','none');
 
     // Hull
     const path=document.createElementNS('http://www.w3.org/2000/svg','path');
