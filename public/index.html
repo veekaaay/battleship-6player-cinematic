@@ -196,7 +196,7 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
 .cside span{display:flex;align-items:center;justify-content:center}
 #PG{
   display:grid;grid-template-columns:repeat(10,1fr);gap:2px;
-  width:min(75vw,360px);aspect-ratio:1;
+  width:min(75vw,360px);aspect-ratio:1;position:relative;
 }
 .pc{
   background:rgba(4,14,24,.95);border:1px solid rgba(16,42,66,.7);
@@ -206,21 +206,8 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
 .pc.pvok{background:rgba(0,85,160,.32);border-color:rgba(0,175,240,.6)}
 .pc.pvbad{background:rgba(160,0,0,.24);border-color:rgba(230,38,38,.56)}
 .pc.placed{
-  background:
-    linear-gradient(180deg,
-      rgba(195,210,225,.92) 0%,
-      rgba(145,165,185,.88) 18%,
-      rgba(100,125,148,.9)  55%,
-      rgba(72,96,118,.95)   100%);
-  border-color:rgba(200,218,235,.55);
-  box-shadow:
-    inset 0 1px 0 rgba(240,248,255,.35),
-    inset 0 -1px 0 rgba(0,0,0,.25),
-    inset 1px 0 0 rgba(255,255,255,.07);
-}
-.pc.placed::after{
-  content:'';position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(90deg,transparent,transparent 4px,rgba(0,0,0,.06) 4px,rgba(0,0,0,.06) 5px);
+  background:rgba(30,60,90,.18);
+  border-color:rgba(100,160,210,.3);
 }
 /* ship palette */
 .spal{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px 0}
@@ -448,25 +435,14 @@ canvas#wv{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.10}
   border-radius:1px;position:relative;transition:background .2s;
 }
 .ogc.s{
-  background:
-    linear-gradient(180deg,
-      rgba(188,205,222,.9)  0%,
-      rgba(138,160,180,.88) 18%,
-      rgba(95,120,145,.9)   55%,
-      rgba(68,90,112,.95)   100%);
-  border-color:rgba(195,212,230,.5);
-  box-shadow:
-    inset 0 1px 0 rgba(235,246,255,.32),
-    inset 0 -1px 0 rgba(0,0,0,.22);
+  background:rgba(30,60,90,.15);
+  border-color:rgba(90,145,195,.28);
 }
-.ogc.s::before{
-  content:'';position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(90deg,transparent,transparent 3px,rgba(0,0,0,.07) 3px,rgba(0,0,0,.07) 4px);
-  z-index:1;
-}
-/* hit on own ship — flashing damage */
-.ogc.h{background:radial-gradient(circle,rgba(70,12,0,.95),rgba(40,6,0,.9));border-color:rgba(150,30,0,.4)}
+/* hit on own ship — flashing damage (z-index above SVG ship overlay) */
+.ogc.h{background:radial-gradient(circle,rgba(70,12,0,.95),rgba(40,6,0,.9));border-color:rgba(150,30,0,.4);z-index:4}
 .ogc.h::after{content:'';position:absolute;inset:0;background:radial-gradient(circle,rgba(255,50,0,.5),transparent 70%)}
+/* ship SVG overlay */
+.ship-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3;overflow:visible}
 .ogc.m{background:rgba(3,14,26,.9)}
 .ogc.m::before{content:'·';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(18,72,130,.6)}
 /* incoming hit flash */
@@ -824,38 +800,223 @@ const ns=(dur,vol,lp=800)=>{
   }catch(e){}
 };
 const SFX={
+  // Deck gun / torpedo tube — sharp crack + concussive sub-bass rumble
   fire(){
     try{
-      const a=gA(),o=a.createOscillator(),g=a.createGain();
-      o.type='sine';
-      o.frequency.setValueAtTime(180,a.currentTime);
-      o.frequency.exponentialRampToValueAtTime(900,a.currentTime+.07);
-      g.gain.setValueAtTime(0,a.currentTime);
-      g.gain.linearRampToValueAtTime(.055,a.currentTime+.008);
-      g.gain.exponentialRampToValueAtTime(.0005,a.currentTime+.11);
-      o.connect(g);g.connect(a.destination);o.start(a.currentTime);o.stop(a.currentTime+.13);
+      const a=gA(),t=a.currentTime;
+      // Impulsive crack (very short broadband burst)
+      const b1=a.createBuffer(1,Math.floor(a.sampleRate*.018),a.sampleRate);
+      const d1=b1.getChannelData(0);
+      for(let i=0;i<d1.length;i++)d1[i]=(Math.random()*2-1)*Math.pow(1-i/d1.length,4);
+      const s1=a.createBufferSource();s1.buffer=b1;
+      const g1=a.createGain();g1.gain.setValueAtTime(.85,t);
+      s1.connect(g1);g1.connect(a.destination);s1.start(t);
+      // Concussive low-frequency pressure wave
+      const b2=a.createBuffer(1,Math.floor(a.sampleRate*.22),a.sampleRate);
+      const d2=b2.getChannelData(0);for(let i=0;i<d2.length;i++)d2[i]=Math.random()*2-1;
+      const s2=a.createBufferSource();s2.buffer=b2;
+      const f2=a.createBiquadFilter();f2.type='lowpass';f2.frequency.value=105;
+      const g2=a.createGain();
+      g2.gain.setValueAtTime(0,t+.012);g2.gain.linearRampToValueAtTime(.42,t+.026);
+      g2.gain.exponentialRampToValueAtTime(.001,t+.24);
+      s2.connect(f2);f2.connect(g2);g2.connect(a.destination);s2.start(t+.012);
     }catch(e){}
-    setTimeout(()=>ns(.1,.025,4500),30);
   },
+  // Direct hit — impact crack + explosion body + metallic hull resonance
   hit(){
-    try{const a=gA(),o=a.createOscillator(),g=a.createGain();
-      o.type='sine';o.frequency.setValueAtTime(105,a.currentTime);
-      o.frequency.exponentialRampToValueAtTime(22,a.currentTime+.85);
-      g.gain.setValueAtTime(.58,a.currentTime);
-      g.gain.exponentialRampToValueAtTime(.0005,a.currentTime+.95);
-      o.connect(g);g.connect(a.destination);o.start(a.currentTime);o.stop(a.currentTime+1);
+    try{
+      const a=gA(),t=a.currentTime;
+      // Impact crack (high-passed noise)
+      const b1=a.createBuffer(1,Math.floor(a.sampleRate*.04),a.sampleRate);
+      const d1=b1.getChannelData(0);
+      for(let i=0;i<d1.length;i++)d1[i]=(Math.random()*2-1)*Math.pow(1-i/d1.length,2.5);
+      const s1=a.createBufferSource();s1.buffer=b1;
+      const hp=a.createBiquadFilter();hp.type='highpass';hp.frequency.value=280;
+      const g1=a.createGain();g1.gain.setValueAtTime(1.1,t);
+      s1.connect(hp);hp.connect(g1);g1.connect(a.destination);s1.start(t);
+      // Explosion body (low rumble, 1s decay)
+      const b2=a.createBuffer(1,Math.floor(a.sampleRate*1.1),a.sampleRate);
+      const d2=b2.getChannelData(0);for(let i=0;i<d2.length;i++)d2[i]=Math.random()*2-1;
+      const s2=a.createBufferSource();s2.buffer=b2;
+      const lp=a.createBiquadFilter();lp.type='lowpass';lp.frequency.value=240;
+      const g2=a.createGain();
+      g2.gain.setValueAtTime(.72,t+.01);g2.gain.exponentialRampToValueAtTime(.001,t+1.1);
+      s2.connect(lp);lp.connect(g2);g2.connect(a.destination);s2.start(t+.008);
+      // Steel hull resonance (sine pitch-drops: 320→38Hz)
+      const o=a.createOscillator(),go=a.createGain();
+      o.type='sine';o.frequency.setValueAtTime(320,t);o.frequency.exponentialRampToValueAtTime(38,t+.95);
+      go.gain.setValueAtTime(.35,t);go.gain.exponentialRampToValueAtTime(.001,t+1.05);
+      o.connect(go);go.connect(a.destination);o.start(t);o.stop(t+1.1);
     }catch(e){}
-    ns(.6,.17,370);setTimeout(()=>tn(52,'sine',.5,.2,.007),95);
   },
-  splash(){ns(.28,.1,600);tn(350,'sine',.16,.09,.004);setTimeout(()=>tn(270,'sine',.22,.05,.006),75)},
-  sunk(){SFX.hit();setTimeout(()=>{ns(.85,.22,1300);tn(46,'sine',.85,.24,.01)},175);setTimeout(()=>tn(34,'sine',1,.14,.02),520)},
-  turn(){tn(470,'square',.07,.07,.003);setTimeout(()=>tn(590,'square',.07,.055,.003),100)},
-  ping(){tn(830,'sine',.12,.055,.003)},
-  sonar(){tn(650,'sine',.27,.07,.004);setTimeout(()=>tn(520,'sine',.2,.04,.004),155)},
-  ready(){tn(390,'triangle',.1,.08,.004);setTimeout(()=>tn(490,'triangle',.1,.06,.004),110)},
-  victory(){[523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>tn(f,'triangle',.45,.1,.007),i*145))},
-  warning(){tn(280,'sawtooth',.12,.12,.003);setTimeout(()=>tn(260,'sawtooth',.12,.1,.003),130)},
+  // Near miss — torpedo impacts water: bandpass splash + low plonk
+  splash(){
+    try{
+      const a=gA(),t=a.currentTime;
+      const buf=a.createBuffer(1,Math.floor(a.sampleRate*.65),a.sampleRate);
+      const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+      const src=a.createBufferSource();src.buffer=buf;
+      const bp=a.createBiquadFilter();bp.type='bandpass';bp.frequency.value=980;bp.Q.value=1.2;
+      const lp2=a.createBiquadFilter();lp2.type='lowpass';lp2.frequency.value=3800;
+      const g=a.createGain();
+      g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.26,t+.05);
+      g.gain.exponentialRampToValueAtTime(.001,t+.62);
+      src.connect(bp);bp.connect(lp2);lp2.connect(g);g.connect(a.destination);src.start(t);
+      const o=a.createOscillator(),go=a.createGain();
+      o.type='sine';o.frequency.setValueAtTime(195,t);o.frequency.exponentialRampToValueAtTime(52,t+.32);
+      go.gain.setValueAtTime(.11,t+.02);go.gain.exponentialRampToValueAtTime(.001,t+.42);
+      o.connect(go);go.connect(a.destination);o.start(t+.015);o.stop(t+.46);
+    }catch(e){}
+  },
+  // Ship sunk — chain explosions + massive sub-bass + sinking moan
+  sunk(){
+    [0,220,480,800].forEach(d=>setTimeout(()=>SFX.hit(),d));
+    setTimeout(()=>{
+      try{
+        const a=gA(),t=a.currentTime;
+        const b=a.createBuffer(1,Math.floor(a.sampleRate*2.2),a.sampleRate);
+        const d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+        const src=a.createBufferSource();src.buffer=b;
+        const f=a.createBiquadFilter();f.type='lowpass';f.frequency.value=62;
+        const g=a.createGain();
+        g.gain.setValueAtTime(.58,t);g.gain.exponentialRampToValueAtTime(.001,t+2.2);
+        src.connect(f);f.connect(g);g.connect(a.destination);src.start(t);
+        // Sinking moan
+        const o=a.createOscillator(),go=a.createGain();
+        o.type='sine';o.frequency.setValueAtTime(90,t+.5);o.frequency.exponentialRampToValueAtTime(20,t+2.6);
+        go.gain.setValueAtTime(.28,t+.5);go.gain.exponentialRampToValueAtTime(.001,t+2.8);
+        o.connect(go);go.connect(a.destination);o.start(t+.5);o.stop(t+2.9);
+      }catch(e){}
+    },60);
+  },
+  // Turn alert — military two-beep
+  turn(){tn(520,'square',.055,.075,.003);setTimeout(()=>tn(660,'square',.055,.06,.003),120)},
+  // UI ping
+  ping(){tn(900,'sine',.04,.05,.002)},
+  // Classic submarine sonar
+  sonar(){
+    try{
+      const a=gA(),t=a.currentTime;
+      const o=a.createOscillator(),g=a.createGain();
+      o.type='sine';o.frequency.setValueAtTime(820,t);o.frequency.exponentialRampToValueAtTime(640,t+.15);
+      g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.22,t+.003);
+      g.gain.exponentialRampToValueAtTime(.001,t+.62);
+      o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+.68);
+    }catch(e){}
+  },
+  // Placement confirmed — positive 3-step chime
+  ready(){[0,95,190].forEach((d,i)=>setTimeout(()=>tn(440+i*130,'triangle',.075,.07,.003),d))},
+  // Victory fanfare
+  victory(){[523,659,784,1047,1319,1568].forEach((f,i)=>setTimeout(()=>tn(f,'triangle',.09,.38,.005),i*130))},
+  // Urgent klaxon pulses
+  warning(){
+    [0,170,340].forEach(d=>{
+      setTimeout(()=>tn(370,'sawtooth',.1,.12,.004),d);
+      setTimeout(()=>tn(330,'sawtooth',.08,.09,.003),d+85);
+    });
+  },
 };
+
+// ════════════════════════ SHIP SVG RENDERING
+const SHIP_STYLE={
+  'Carrier':   {fill:'#4a5c6a',stroke:'#7aacba',hl:'#9accd8',br:'#38505e'},
+  'Battleship':{fill:'#3a4858',stroke:'#607898',hl:'#7898b8',br:'#2c3848'},
+  'Cruiser':   {fill:'#485840',stroke:'#708858',hl:'#88a870',br:'#384830'},
+  'Submarine': {fill:'#283038',stroke:'#485868',hl:'#587888',br:'#1c242c'},
+  'Destroyer': {fill:'#384858',stroke:'#5880a0',hl:'#70a0c8',br:'#283848'},
+};
+function _hullH(x,y,w,h){
+  const m=h*.07,bow=w*.2,sn=w*.09,cy=y+h/2;
+  return `M${x},${cy} L${x+bow},${y+m} L${x+w-sn},${y+m} Q${x+w},${y+m} ${x+w},${cy} Q${x+w},${y+h-m} ${x+w-sn},${y+h-m} L${x+bow},${y+h-m} Z`;
+}
+function _hullV(x,y,w,h){
+  const m=w*.07,bow=h*.2,sn=h*.09,cx=x+w/2;
+  return `M${cx},${y} L${x+m},${y+bow} L${x+m},${y+h-sn} Q${x+m},${y+h} ${cx},${y+h} Q${x+w-m},${y+h} ${x+w-m},${y+h-sn} L${x+w-m},${y+bow} Z`;
+}
+function drawShipSVG(ships,gridEl){
+  // Remove stale overlay
+  gridEl.querySelectorAll('.ship-svg').forEach(e=>e.remove());
+  if(!ships||!ships.length)return;
+
+  const gr=gridEl.getBoundingClientRect();
+  if(!gr.width)return;
+
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox',`0 0 ${gr.width} ${gr.height}`);
+  svg.classList.add('ship-svg');
+
+  ships.forEach(ship=>{
+    if(!ship.cells||!ship.cells.length)return;
+    const rows=ship.cells.map(c=>Math.floor(c/10));
+    const cols=ship.cells.map(c=>c%10);
+    const minR=Math.min(...rows),maxR=Math.max(...rows);
+    const minC=Math.min(...cols),maxC=Math.max(...cols);
+    const isH=minR===maxR;
+
+    // Pixel coords from the actual rendered cells (accounts for gap)
+    const cellEls=ship.cells.map(ci=>{
+      // find by data attributes or by grid position index
+      const el=gridEl.querySelector(`[data-r="${Math.floor(ci/10)}"][data-c="${ci%10}"]`)
+             ||[...gridEl.children][ci];
+      return el;
+    }).filter(Boolean);
+    if(!cellEls.length)return;
+
+    const rects=cellEls.map(el=>el.getBoundingClientRect());
+    const x=Math.min(...rects.map(r=>r.left))-gr.left;
+    const y=Math.min(...rects.map(r=>r.top))-gr.top;
+    const w=Math.max(...rects.map(r=>r.right))-gr.left-x;
+    const h=Math.max(...rects.map(r=>r.bottom))-gr.top-y;
+
+    const st=SHIP_STYLE[ship.name]||SHIP_STYLE['Destroyer'];
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+
+    // Hull
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', isH?_hullH(x,y,w,h):_hullV(x,y,w,h));
+    path.setAttribute('fill',st.fill);
+    path.setAttribute('stroke',st.stroke);
+    path.setAttribute('stroke-width','0.8');
+    path.setAttribute('rx','1');
+    g.appendChild(path);
+
+    // Centerline highlight stripe
+    const hl=document.createElementNS('http://www.w3.org/2000/svg','line');
+    if(isH){
+      hl.setAttribute('x1',x+w*.18);hl.setAttribute('y1',y+h*.32);
+      hl.setAttribute('x2',x+w*.82);hl.setAttribute('y2',y+h*.32);
+    } else {
+      hl.setAttribute('x1',x+w*.32);hl.setAttribute('y1',y+h*.18);
+      hl.setAttribute('x2',x+w*.32);hl.setAttribute('y2',y+h*.82);
+    }
+    hl.setAttribute('stroke',st.hl);hl.setAttribute('stroke-width','0.7');hl.setAttribute('opacity','0.55');
+    g.appendChild(hl);
+
+    // Bridge block (darker rect, 20% from bow end)
+    const br=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    if(isH){
+      const bx=x+w*.26,bw=w*.18,bh=h*.55,by=y+(h-bh)/2;
+      br.setAttribute('x',bx);br.setAttribute('y',by);br.setAttribute('width',bw);br.setAttribute('height',bh);
+    } else {
+      const by2=y+h*.26,bh2=h*.18,bw2=w*.55,bx2=x+(w-bw2)/2;
+      br.setAttribute('x',bx2);br.setAttribute('y',by2);br.setAttribute('width',bw2);br.setAttribute('height',bh2);
+    }
+    br.setAttribute('fill',st.br);br.setAttribute('rx','0.8');br.setAttribute('opacity','0.85');
+    g.appendChild(br);
+
+    // Sunk ships get a dark overlay
+    if(ship.sunk){
+      const ov=document.createElementNS('http://www.w3.org/2000/svg','path');
+      ov.setAttribute('d', isH?_hullH(x,y,w,h):_hullV(x,y,w,h));
+      ov.setAttribute('fill','rgba(0,0,0,.62)');ov.setAttribute('stroke','none');
+      g.appendChild(ov);
+    }
+
+    svg.appendChild(g);
+  });
+
+  gridEl.appendChild(svg);
+}
 
 // ════════════════════════ CONSTANTS
 const G=10,COLS='ABCDEFGHIJ'.split('');
@@ -877,7 +1038,19 @@ let selShip=0,orient='h',placed=[],myGrid=[],myShips=[];
 let pvEls=[],plDone=false,prevPhase='';
 
 // ════════════════════════ SOCKET
-socket.on('connect',()=>{myId=socket.id;document.getElementById('dot').classList.add('on');SFX.ping()});
+let _rejoining=false,_rejoinTimer=null;
+
+socket.on('connect',()=>{
+  myId=socket.id;
+  document.getElementById('dot').classList.add('on');
+  SFX.ping();
+  // Auto-attempt rejoin if a session exists
+  const sess=JSON.parse(localStorage.getItem('nw_session')||'null');
+  if(sess){
+    // Give the user 1.2s to click "Start Fresh" before auto-rejoining
+    _rejoinTimer=setTimeout(()=>doRejoin(),1200);
+  }
+});
 // Only use server-provided URL when on localhost (local network play).
 // When accessed via a tunnel or cloud host, location.origin is already correct.
 socket.on('server-info',({url})=>{
@@ -898,6 +1071,13 @@ socket.on('joined',({roomCode,pIdx,token,isRejoin})=>{
 socket.on('state',s=>{
   gstate=s;
   if(s.myPIdx>=0)myPIdx=s.myPIdx;
+  if(_rejoining){
+    _rejoining=false;
+    // Restore local grid/ship state from server
+    if(s.myGrid)myGrid=[...s.myGrid];
+    if(s.myShips)myShips=[...s.myShips];
+    if(s.phase==='game'||s.phase==='over')plDone=true;
+  }
   // If rejoining mid-placement and already ready, skip re-placement UI
   if(s.phase==='placement'){
     const me=s.players.find(p=>p.isMe);
@@ -908,7 +1088,16 @@ socket.on('state',s=>{
   renderState(s);
 });
 socket.on('attack-result',onAtkResult);
-socket.on('error',({msg})=>showErr(msg));
+socket.on('error',({msg})=>{
+  if(_rejoining){
+    _rejoining=false;
+    // Rejoin failed — session is stale; clear it and drop back to home
+    localStorage.removeItem('nw_session');
+    document.getElementById('rejoinCard').style.display='none';
+    showScreen('HS');
+  }
+  showErr(msg);
+});
 socket.on('kicked',()=>{localStorage.removeItem('nw_session');alert('Removed by host.');goHome()});
 socket.on('turn-skipped',({skippedId})=>{
   if(!gstate)return;
@@ -935,8 +1124,12 @@ tickClock();
 
 // ════════════════════════ CONNECT
 const nameVal=()=>document.getElementById('myName').value.trim()||'Commander';
-function createRoom(){socket.emit('create-room',{name:nameVal()})}
+function createRoom(){
+  if(_rejoinTimer){clearTimeout(_rejoinTimer);_rejoinTimer=null;}
+  socket.emit('create-room',{name:nameVal()});
+}
 function joinRoom(){
+  if(_rejoinTimer){clearTimeout(_rejoinTimer);_rejoinTimer=null;}
   const code=document.getElementById('joinCode').value.trim().toUpperCase();
   if(!code){showErr('Enter a room code.');return}
   socket.emit('join-room',{code,name:nameVal()});
@@ -1028,6 +1221,8 @@ function buildPGrid(){
     el.addEventListener('mouseleave',clearPv);
     g.appendChild(el);
   }
+  // Draw ship silhouettes after cells are in DOM
+  requestAnimationFrame(()=>drawShipSVG(myShips,g));
 }
 function renderSPal(){
   const pal=document.getElementById('sPal');pal.innerHTML='';
@@ -1143,6 +1338,7 @@ function refreshOGrid(s){
     c.className='ogc'+(v===1?' s':v===2?' h':v===3?' m':'');
     og.appendChild(c);
   });
+  requestAnimationFrame(()=>drawShipSVG(s.myShips||[],og));
 }
 function refreshSList(s){
   const sl=document.getElementById('slist');sl.innerHTML='';
@@ -1402,9 +1598,14 @@ function goHome(){localStorage.removeItem('nw_session');location.reload()}
 function doRejoin(){
   const sess=JSON.parse(localStorage.getItem('nw_session')||'null');
   if(!sess)return;
+  _rejoining=true;
+  // Update stored name in case they changed it
+  localStorage.setItem('nw_session',JSON.stringify({...sess,name:nameVal()||sess.name}));
   socket.emit('rejoin-room',{code:sess.roomCode,token:sess.token});
 }
 function clearSession(){
+  if(_rejoinTimer){clearTimeout(_rejoinTimer);_rejoinTimer=null;}
+  _rejoining=false;
   localStorage.removeItem('nw_session');
   document.getElementById('rejoinCard').style.display='none';
 }
